@@ -1,18 +1,16 @@
 {
   "name": "amastata-server",
   "version": "1.0.0",
-  "description": "amastata development server",
+  "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
-    "build": "npm run build"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/6upe/amastata-server.git"
   },
-  "author": "Katongo Bupe",
+  "author": "bupe",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/6upe/amastata-server/issues"
