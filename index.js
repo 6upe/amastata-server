@@ -7,6 +7,10 @@ const app = express();
 app.use(cors());
 
 app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/index.html');
+});
+
+app.get('/data', (req, res) => {
   res.json('Hello, World!');
 });
 
