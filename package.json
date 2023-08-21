@@ -2,11 +2,12 @@
   "name": "amastata-server",
   "version": "1.0.0",
   "description": "centralized loan application management server",
-  "main": "server.js",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js",
-    "build" : "npm run build"
+    "start": "node index.js",
+    "client-build": "cd client && npm install && npm run build", 
+    "build": "npm run client-build && npm install" 
   },
   "repository": {
     "type": "git",
