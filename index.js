@@ -12,11 +12,11 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
 // Routes
 app.get('/', (req, res) => {
-  res.send('Hello, World!');
+  res.sendFile(__dirname + '/index.html');
 });
 
 app.get('/data', (req, res) => {
-  res.send('data from the server');
+  res.json('data from the server');
 });
 
 // Error handling middleware
