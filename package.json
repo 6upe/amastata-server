@@ -1,18 +1,16 @@
 {
   "name": "amastata-server",
   "version": "1.0.0",
-  "description": "centralized loan application management server",
+  "description": "amastata development server",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
-    "build": "npm run build && npm install" 
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/6upe/amastata-server.git"
   },
-  "author": "Bupe Katongo",
+  "author": "Katongo Bupe",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/6upe/amastata-server/issues"
