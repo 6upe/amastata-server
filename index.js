@@ -33,7 +33,7 @@ mongoose.connect(mongoDBConnection, {
 app.get('/', (req, res) => {
     Admin.find()
       .then((result) => {
-        res.send(result);
+        res.json(result);
       })
       .catch((err) => {
         console.log(err)
