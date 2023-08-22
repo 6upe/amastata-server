@@ -41,5 +41,5 @@ app.get('/', (req, res) => {
 });
 
 app.get('/data', (req, res) => {
-  res.json('Hello, World!');
+  res.json('Hello World!');
 });
