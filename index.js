@@ -1,29 +1,40 @@
+require("dotenv").config();
 const express = require("express");
-const textflow = require("textflow.js");
-const cors = require("cors"); // Import the cors module
-require("dotenv").config(); // Load environment variables
+const cors = require("cors");
+const bodyParser = require("body-parser");
+const session = require("express-session");
 const mongoose = require("mongoose");
 const Admin = require("./database/models/Admin");
 const Debtor = require("./database/models/debtor");
-const bodyParser = require("body-parser");
+const jwt = require("jsonwebtoken"); // You'll need to install the 'jsonwebtoken' package
 
-const port = process.env.PORT || 3000;
+/****************GLOBAL VARIABLES*******************/
 const app = express();
+const port = process.env.PORT || 3000;
+const accountSid = process.env.TWILIO_CLIENT_ID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = require("twilio")(accountSid, authToken);
 
-// Increase the payload size limit (e.g., 10MB)
+let SESSION_OPEN = false;
+let PHONE_NUMBER = "+260962893773";
+let VERIFICATION_CODE = 1234;
+
+/*******************MIDDLEWARE***********************/
+app.use(cors());
 app.use(bodyParser.json({ limit: "50mb" }));
-
 app.use(express.json()); // Parse JSON request body
 
-// Use the cors middleware
-app.use(cors());
+app.use(
+  session({
+    secret: process.env.SESSION_KEY, // Replace with a strong, secret key
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false }, // Set secure to true in a production environment with HTTPS
+  })
+);
 
-//database connection
-
+/**************DATABASE CONNECTION******************/
 const mongoDBConnection = process.env.MONGODB_URI;
-
-textflow.useKey(process.env.TEXTFLOW_API_KEY);
-
 mongoose
   .connect(mongoDBConnection, {
     useNewUrlParser: true,
@@ -39,146 +50,204 @@ mongoose
     console.error("Error connecting to MongoDB:", error);
   });
 
-app.get("/", (req, res) => {
-  promptSend("+260962893773");
-
-  Admin.find()
-    .then((result) => {
-      res.json(result);
-    })
-    .catch((err) => {
-      console.log(err);
-    });
-});
-
-app.get("/data", (req, res) => {
-  res.json("Hello World!");
-});
-
-app.post("/verify", async (req, res) => {
-  const Data = req.body;
-  console.log("Received OTP:", Data);
-
-  //The user has submitted the code
-  let result = await textflow.verifyCode(Data.PhoneNumberPrimary, Data.OTP);
-  //if `result.valid` is true, then the phone number is verified.
-
-  if (result) {
-    console.log("Phone Number verified");
-  }
-
-  res.status(200).json({ message: "POST request received successfully." });
-});
-
-app.post("/create-debtor-account", (req, res) => {
-  function promptSend(phoneNumber) {
-    console.log("sending OTP to: " + phoneNumber);
-    textflow.sendSMS(phoneNumber, "Dummy message text...");
-  }
-
-  const dataFromClient = req.body;
-
-  promptSend(dataFromClient[0].data.basicInformation.phoneNumberPrimary);
-
-  console.log(
-    "Received data:",
-    dataFromClient[0].data.basicInformation.firstname
-  );
-
-  // Create a single object that includes data from all screens
-  const combinedData = {
-    basicInformation: dataFromClient[0].data.basicInformation, // Data from DebtorBasicInfo
-    residentialAddress: dataFromClient[1].data.residentialAddress, // Data from DebtorResidentialAddress
-    identificationImages: {
-      nrcFrontImage:
-        dataFromClient[2].data.identificationImages.nrcFrontImage.base64,
-      nrcBackImage:
-        dataFromClient[2].data.identificationImages.nrcBackImage.base64,
-      nrcNumber: dataFromClient[2].data.identificationImages.nrcNumber,
-      portraitImage:
-        dataFromClient[2].data.identificationImages.portraitImage.base64,
-      portraitWithNRCImage:
-        dataFromClient[2].data.identificationImages.portraitWithNRCImage.base64,
-    }, // Data from DebtorIdentification
-    completeSetup: dataFromClient[3].data.completeSetup, // Data from DebtorCompleteSetup
-  };
-
-  const newSchimarizedData = new Debtor(combinedData);
-  newSchimarizedData
-    .save()
-    .then(() => {
-      console.log(
-        `New Account Created: ${dataFromClient[0].data.basicInformation.firstname}`
-      );
-    })
-    .catch((error) => {
-      // Corrected catch block
-      console.error(
-        `Error saving data: ${dataFromClient[0].data.basicInformation.firstname}`,
-        error
-      );
-    });
-
-  Debtor.find()
-    .then((result) => {
-      console.log(JSON.stringify(result));
-    })
-    .catch((err) => {
-      console.log(err);
-    });
-
-  res.status(200).json({ message: "POST request received successfully." });
-});
-
-function renderDebtorsPage(debtors) {
-  const debtorCards = debtors.map((debtor) => {
-    return `
-      <div class="debtor-card">
-        <h2>${debtor.basicInformation.firstname} ${debtor.basicInformation.lastname}</h2>
-        <p>Occupation: ${debtor.basicInformation.occupation}</p>
-        <p>Phone: ${debtor.basicInformation.phoneNumberPrimary}</p>
-        <!-- Add more debtor information as needed -->
-
-        <!-- Display debtor images -->
-<img width="50px" height="50px" src="data:image/jpeg;base64, ${debtor.identificationImages.nrcFrontImage}" alt="NRC Front" />
-<img width="50px" height="50px" src="data:image/jpeg;base64, ${debtor.identificationImages.nrcBackImage}" alt="NRC Back" />
-<!-- Add more image tags for other images -->
-
-      </div>
-    `;
-  });
-
-  // HTML template for the entire page
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Debtors</title>
-    </head>
-    <body>
-      <h1>Debtors</h1>
-      ${debtorCards.join("")}
-    </body>
-    </html>
-  `;
-
-  return html;
+/*****************GLOBAL FUNCTIONS******************/
+function generateOTP() {
+  const min = 1000; // Minimum 4-digit number
+  const max = 9999; // Maximum 4-digit number
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// Define a route to display debtor data as an HTML page
-app.get("/debtors", async (req, res) => {
+const verifyToken = (token, secretKey) => {
   try {
-    // Fetch the debtor data from your database (e.g., using Mongoose)
-    const debtors = await Debtor.find(); // Replace with your actual query
-
-    // Render an HTML page with debtor information and images
-    const html = renderDebtorsPage(debtors); // Implement this function
-
-    // Set the Content-Type header to indicate an HTML response
-    res.setHeader("Content-Type", "text/html");
-    res.send(html);
+    const decodedToken = jwt.verify(token, secretKey);
+    const userId = decodedToken.userId; // Extract user ID from the payload
+    return userId;
   } catch (error) {
-    console.error("Error fetching debtor data:", error);
-    res.status(500).send("Internal Server Error");
+    throw new Error("Token verification failed");
+  }
+};
+
+/*********************ROUTES*************************/
+
+app.get("/", (req, res) => {
+  //FETCH ALL DEBTORS
+  Debtor.find()
+    .then((result) => {
+      res.json(result[0]._id);
+    })
+    .catch((err) => {
+      console.log(err);
+    });
+});
+
+app.get("/user-data", async (req, res) => {
+  const authToken = req.headers.authorization;
+  const secretKey = process.env.JWT_SECRET; // Replace with your actual secret key
+
+  const userId = verifyToken(authToken, secretKey);
+  console.log("Fetching User Data: ", userId);
+
+  try {
+    const user = await Debtor.findOne({ _id: userId });
+    // Respond with the user's data
+    const userData = user.completeSetup.emailAddress;
+    console.log("User Data Fetched: ", userData);
+    res.json(userData);
+  } catch (error) {
+    console.log("Unauthorized user!");
+    // Handle token verification or data fetching errors
+    res.status(401).json({ error: "Unauthorized" });
+  }
+});
+
+app.post("/debtor-login", async (req, res) => {
+  const { email, password } = req.body;
+
+  // Check if email and password are not empty
+  if (!email || !password) {
+    return res.status(400).send({ message: "Email and password are required" });
+  }
+
+  // Regular expression for basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  // Check if email matches the email format
+  if (!emailRegex.test(email)) {
+    return res.status(400).send({ message: "Invalid email format" });
+  }
+
+  console.log(req.body);
+
+  try {
+    // Query the database to find the user by email
+
+    const user = await Debtor.findOne({ "completeSetup.emailAddress": email });
+
+    // If the user does not exist, return an error
+    if (!user) {
+      return res.status(401).send({ message: "User does not exist" });
+    }
+
+    // Check if the password matches the stored hash
+    const isPasswordValid = await user.comparePassword(password);
+
+    if (!isPasswordValid) {
+      return res.status(401).send({ message: "Invalid Password" });
+    }
+
+    // If the credentials are valid, create a JWT
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1h", // Token expiration time (adjust as needed)
+    });
+
+    // Send the JWT as a response
+    console.log("Login Success: ", email, token);
+    res.send({ user: email, token: token });
+  } catch (error) {
+    console.error("Error during login:", error);
+    res.status(500).send({ message: "Internal server error" });
+  }
+});
+
+// Your route for creating a debtor account
+app.post("/create-debtor-account", (req, res) => {
+  const { phoneNumber } = req.body;
+  const verification_code = generateOTP();
+
+  // Set user OTP identification session variables
+  req.session.VERIFICATION_CODE = verification_code;
+  req.session.PHONE_NUMBER = phoneNumber;
+
+  function sendOTPSMS(phoneNumber) {
+    // TWILIO SEND OTP SMS
+    client.messages
+      .create({
+        body:
+          "Amastata Debtor Account Creation, Verification Code: " +
+          verification_code,
+        from: "+12678281437",
+        to: phoneNumber,
+      })
+      .then((message) => {
+        console.log(message.sid, " OTP SMS Sent to: ", phoneNumber);
+        // You can now access session variables here
+        console.log(
+          "Session variables:",
+          req.session.VERIFICATION_CODE,
+          req.session.PHONE_NUMBER
+        );
+        PHONE_NUMBER = req.session.PHONE_NUMBER;
+        VERIFICATION_CODE = req.session.VERIFICATION_CODE;
+        SESSION_OPEN = true;
+      })
+      .catch((error) => {
+        console.error("Error sending OTP SMS:", error);
+      });
+  }
+
+  sendOTPSMS(phoneNumber);
+});
+
+app.post("/verify", (req, res) => {
+  const Data = req.body;
+  const OTP = Data.OTP;
+  const dataFromClient = Data.screenData;
+  const phoneNumber = Data.PhoneNumberPrimary;
+
+  // Retrieve data from the user's session
+  const storedVerificationCode = VERIFICATION_CODE;
+  const storedPhoneNumber = PHONE_NUMBER;
+
+  console.log(OTP);
+  console.log(storedVerificationCode);
+  console.log(phoneNumber);
+  console.log(storedPhoneNumber);
+
+  // Verify OTP and phone number
+  if (OTP == storedVerificationCode && phoneNumber == storedPhoneNumber) {
+    console.log(phoneNumber, " OTP VERIFIED!");
+    console.log(
+      "SAVING DATA...: ",
+      dataFromClient[0].data.basicInformation.firstname
+    );
+
+    // Create a single object that includes data from all screens
+    const combinedData = {
+      basicInformation: dataFromClient[0].data.basicInformation,
+      residentialAddress: dataFromClient[1].data.residentialAddress,
+      identificationImages: {
+        nrcFrontImage:
+          dataFromClient[2].data.identificationImages.nrcFrontImage.base64,
+        nrcBackImage:
+          dataFromClient[2].data.identificationImages.nrcBackImage.base64,
+        nrcNumber: dataFromClient[2].data.identificationImages.nrcNumber,
+        portraitImage:
+          dataFromClient[2].data.identificationImages.portraitImage.base64,
+        portraitWithNRCImage:
+          dataFromClient[2].data.identificationImages.portraitWithNRCImage
+            .base64,
+      },
+      completeSetup: dataFromClient[3].data.completeSetup,
+    };
+
+    //CONSOLIDATE RECEIVED DATA WITH DEFINED DEBTOR SCHEMA
+    const newSchimarizedData = new Debtor(combinedData);
+    newSchimarizedData
+      .save()
+      .then(() => {
+        res.json({ isValid: true });
+        console.log(
+          `New Account Created: ${dataFromClient[0].data.basicInformation.firstname}`
+        );
+      })
+      .catch((error) => {
+        // Corrected catch block
+        console.error(
+          `Error saving data: ${dataFromClient[0].data.basicInformation.firstname}`,
+          error
+        );
+      });
+  } else {
+    res.json({ isValid: false });
   }
 });
