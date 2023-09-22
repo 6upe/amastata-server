@@ -5,6 +5,7 @@ const bodyParser = require("body-parser");
 const session = require("express-session");
 const mongoose = require("mongoose");
 const Admin = require("./database/models/Admin");
+const Lender = require("./database/models/Lender");
 const Debtor = require("./database/models/debtor");
 const jwt = require("jsonwebtoken"); // You'll need to install the 'jsonwebtoken' package
 
@@ -153,7 +154,7 @@ app.post("/debtor-login", async (req, res) => {
 app.post("/create-debtor-account", (req, res) => {
   const { phoneNumber } = req.body;
   const verification_code = generateOTP();
-
+  console.log(verification_code);
   // Set user OTP identification session variables
   req.session.VERIFICATION_CODE = verification_code;
   req.session.PHONE_NUMBER = phoneNumber;
@@ -230,15 +231,33 @@ app.post("/verify", (req, res) => {
       completeSetup: dataFromClient[3].data.completeSetup,
     };
 
-    //CONSOLIDATE RECEIVED DATA WITH DEFINED DEBTOR SCHEMA
+    let email = dataFromClient[3].data.completeSetup.emailAddress;
+    // CONSOLIDATE RECEIVED DATA WITH DEFINED DEBTOR SCHEMA
     const newSchimarizedData = new Debtor(combinedData);
     newSchimarizedData
       .save()
-      .then(() => {
-        res.json({ isValid: true });
-        console.log(
-          `New Account Created: ${dataFromClient[0].data.basicInformation.firstname}`
-        );
+      .then(async (user) => {
+        const newUser = await Debtor.findOne({
+          "completeSetup.emailAddress": email,
+        });
+
+        if (newUser) {
+          // If the credentials are valid, create a JWT
+          const token = jwt.sign(
+            { userId: newUser._id },
+            process.env.JWT_SECRET,
+            {
+              expiresIn: "1h", // Token expiration time (adjust as needed)
+            }
+          );
+
+          // Send the JWT as a response
+          console.log("Sign up Success: ", newUser.completeSetup.emailAddress, token);
+          res.send({ isValid: true, user: newUser.completeSetup.emailAddress, token: token }); // Send user email and token
+        }else{
+          console.log('something went wrong while trying to find the newUser');
+          res.send({message: 'something went wrong'});
+        }
       })
       .catch((error) => {
         // Corrected catch block
@@ -246,8 +265,25 @@ app.post("/verify", (req, res) => {
           `Error saving data: ${dataFromClient[0].data.basicInformation.firstname}`,
           error
         );
+        res.status(500).json({ error: "Internal server error" });
       });
   } else {
     res.json({ isValid: false });
+  }
+});
+
+// route for creating a lender account
+app.post("/create-lender-account", async (req, res) => {
+  try {
+    const lenderData = req.body; // Assuming the request body contains lenderDataArray
+    console.log(lenderData);
+    // Create a new Lender document and save it to the database
+    const newLender = new Lender(lenderData);
+    await newLender.save();
+
+    res.status(201).json({ isValid: true, message: "Lender account created successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ isValid: true, message: "Internal server error" });
   }
 });
