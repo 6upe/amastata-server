@@ -2,6 +2,9 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 const session = require("express-session");
 const mongoose = require("mongoose");
 const Admin = require("./database/models/Admin");
@@ -24,6 +27,7 @@ let VERIFICATION_CODE = 1234;
 app.use(cors());
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(express.json()); // Parse JSON request body
+app.use(express.static("public")); // Serve static files from a directory
 
 app.use(
   session({
@@ -79,6 +83,34 @@ app.get("/", (req, res) => {
     .catch((err) => {
       console.log(err);
     });
+});
+
+app.get("/lenders", async (req, res) => {
+  try {
+    // Use the find method to retrieve all lender documents from the database
+    const lenders = await Lender.find();
+
+    // Check if there are lenders in the database
+    if (lenders.length === 0) {
+      return res.status(404).json({ error: "No lenders found" });
+    }
+
+    // Extract the PDF data from the first lender document
+    const pdfData = lenders[0].AuthorizedPersonel.NRC.uri;
+    const pdfFileName = lenders[0].AuthorizedPersonel.NRC.name;
+
+    // Specify the path where you want to store the PDF in the public directory
+    const pdfFilePath = path.join(__dirname, "public", pdfFileName);
+
+    // Write the PDF data to the file
+    fs.writeFileSync(pdfFilePath, pdfData, "base64");
+
+    // Send the PDF file as a response
+    res.sendFile(pdfFilePath);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 app.get("/user-data", async (req, res) => {
@@ -252,11 +284,19 @@ app.post("/verify", (req, res) => {
           );
 
           // Send the JWT as a response
-          console.log("Sign up Success: ", newUser.completeSetup.emailAddress, token);
-          res.send({ isValid: true, user: newUser.completeSetup.emailAddress, token: token }); // Send user email and token
-        }else{
-          console.log('something went wrong while trying to find the newUser');
-          res.send({message: 'something went wrong'});
+          console.log(
+            "Sign up Success: ",
+            newUser.completeSetup.emailAddress,
+            token
+          );
+          res.send({
+            isValid: true,
+            user: newUser.completeSetup.emailAddress,
+            token: token,
+          }); // Send user email and token
+        } else {
+          console.log("something went wrong while trying to find the newUser");
+          res.send({ message: "something went wrong" });
         }
       })
       .catch((error) => {
@@ -272,18 +312,124 @@ app.post("/verify", (req, res) => {
   }
 });
 
-// route for creating a lender account
-app.post("/create-lender-account", async (req, res) => {
-  try {
-    const lenderData = req.body; // Assuming the request body contains lenderDataArray
-    console.log(lenderData);
-    // Create a new Lender document and save it to the database
-    const newLender = new Lender(lenderData);
-    await newLender.save();
-
-    res.status(201).json({ isValid: true, message: "Lender account created successfully" });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ isValid: true, message: "Internal server error" });
-  }
+// Create a storage engine using multer
+const storage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    // Define the destination directory for uploaded files (public/uploads)
+    callback(null, "public/uploads/");
+  },
+  filename: (req, file, callback) => {
+    // Generate a unique filename for each uploaded file
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const fileExtension = path.extname(file.originalname);
+    const fileName = file.fieldname + "-" + uniqueSuffix + fileExtension;
+    callback(null, fileName);
+  },
 });
+
+// Create an instance of the multer middleware with the defined storage engine
+const upload = multer({ storage });
+
+app.post(
+  "/apply-lender-account",
+  upload.array("documents", 2),
+  async (req, res) => {
+    console.log("Received a POST request");
+    console.log("Request Headers:", req.headers);
+    console.log("Request Body:", req.body);
+    try {
+      // Access the form data and uploaded files
+      const formData = {
+        LenderCompanyInfo: JSON.parse(req.body.LenderCompanyInfo),
+        AuthorizedPersonel: JSON.parse(req.body.AuthorizedPersonel),
+        LenderCompleteSetup: JSON.parse(req.body.LenderCompleteSetup),
+      };
+
+      console.log('UPLOADED FILES: ', JSON.stringify(req.files, null, 2));
+
+
+      // Access the uploaded files
+      const NRCFile = req.files[0]; // Assuming it's a single file
+      const KYCDocumentFile = req.files[1]; // Assuming it's a single file
+
+      
+
+      // Move the uploaded files to a permanent location (e.g., public/uploads)
+      const NRCFilePath = NRCFile.path;
+      const KYCDocumentFilePath = KYCDocumentFile.path;
+
+      // Write the files to the permanent location
+      fs.writeFileSync(NRCFilePath, NRCFile.originalname);
+      fs.writeFileSync(KYCDocumentFilePath, KYCDocumentFile.originalname);
+
+      // Save the form data and file paths to MongoDB
+      const lenderData = new Lender({
+        LenderCompanyInfo: formData.LenderCompanyInfo,
+        AuthorizedPersonel: {
+          ...formData.AuthorizedPersonel,
+          NRCFilePath: NRCFilePath, // Store the NRC file path
+        },
+        LenderKYCDocument: {
+          KYCDocumentFilePath: KYCDocumentFilePath, // Store the KYC Document file path
+        },
+        LenderCompleteSetup: formData.LenderCompleteSetup,
+      });
+
+      await lenderData.save();
+
+      // Respond with a success message
+      res
+        .status(201)
+        .json({
+          isValid: true,
+          message: "Lender application sent successfully",
+        });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// // route for creating a lender account
+// app.post("/apply-lender-account", async (req, res) => {
+//   try {
+//     const lenderData = req.body; // Assuming the request body contains lenderDataArray
+//     const combinedLenderData = {
+//       LenderCompanyInfo: lenderData[0].data.LenderCompanyInfo,
+//       AuthorizedPersonel: {
+//         firstname: lenderData[1].data.AuthorizedPersonel.firstname,
+//         lastname: lenderData[1].data.AuthorizedPersonel.lastname,
+//         phoneNumberPrimary:
+//           lenderData[1].data.AuthorizedPersonel.phoneNumberPrimary,
+//         emailAddress: lenderData[1].data.AuthorizedPersonel.emailAddress,
+//         occupation: lenderData[1].data.AuthorizedPersonel.occupation,
+//         NRC: {
+//           uri: lenderData[1].data.AuthorizedPersonel.NRC.uri,
+//           type: lenderData[1].data.AuthorizedPersonel.NRC.mimeType,
+//           name: lenderData[1].data.AuthorizedPersonel.NRC.name,
+//         },
+//       },
+//       LenderKYCDocument:
+//       {
+//         uri: lenderData[2].data.LenderKYCDocument.uri,
+//         type: lenderData[2].data.LenderKYCDocument.mimeType,
+//         name: lenderData[2].data.LenderKYCDocument.name,
+//       },
+//       LenderCompleteSetup: lenderData[3].data.LenderCompleteSetup,
+//     };
+
+//     console.log(combinedLenderData);
+
+//     // Create a new Lender document and save it to the database
+//     const newLender = new Lender(combinedLenderData);
+//     await newLender.save();
+
+//     res
+//       .status(201)
+//       .json({ isValid: true, message: "Lender application sent successfully" });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ isValid: true, message: "Internal server error" });
+//   }
+// });

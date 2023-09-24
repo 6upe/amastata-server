@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const lenderSchema = new mongoose.Schema({
   LenderCompanyInfo: {
@@ -14,16 +14,10 @@ const lenderSchema = new mongoose.Schema({
     phoneNumberPrimary: String,
     emailAddress: String,
     occupation: String,
-    NRC: {
-      uri: String,
-      type: String,
-      name: String,
-    },
+    NRCFilePath: String, // Store the file path for NRC
   },
   LenderKYCDocument: {
-    uri: String,
-    type: String,
-    name: String,
+    KYCDocumentFilePath: String, // Store the file path for KYCDocument
   },
   LenderCompleteSetup: {
     businessEmailAddress: String,
@@ -31,6 +25,4 @@ const lenderSchema = new mongoose.Schema({
   },
 });
 
-const Lender = mongoose.model("Lender", lenderSchema);
-
-module.exports = Lender;
+module.exports = mongoose.model('Lender', lenderSchema);
