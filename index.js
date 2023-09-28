@@ -5,6 +5,7 @@ const bodyParser = require("body-parser");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
+const ejs = require("ejs");
 const session = require("express-session");
 const mongoose = require("mongoose");
 const Admin = require("./database/models/Admin");
@@ -24,10 +25,11 @@ let PHONE_NUMBER = "+260962893773";
 let VERIFICATION_CODE = 1234;
 
 /*******************MIDDLEWARE***********************/
-app.use(cors());
+app.use(cors([]));
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(express.json()); // Parse JSON request body
 app.use(express.static("public")); // Serve static files from a directory
+app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
@@ -37,23 +39,33 @@ app.use(
     cookie: { secure: false }, // Set secure to true in a production environment with HTTPS
   })
 );
+/*******************SET VIEW ENGINE***********************/
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "views"));
 
 /**************DATABASE CONNECTION******************/
 const mongoDBConnection = process.env.MONGODB_URI;
-mongoose
-  .connect(mongoDBConnection, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    app.listen(port, () => {
-      console.log(`Server is running on port ${port}`);
+const connectWithRetry = () => {
+  mongoose
+    .connect(mongoDBConnection, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    })
+    .then(() => {
+      console.log("Connected to MongoDB");
+      app.listen(port, () => {
+        console.log(`Server is running on port ${port}`);
+      });
+    })
+    .catch((error) => {
+      console.error("Error connecting to MongoDB:", error);
+      console.log("Retrying in 5 seconds...");
+      setTimeout(connectWithRetry, 5000); // Retry after 5 seconds
     });
-    console.log("Connected to MongoDB");
-  })
-  .catch((error) => {
-    console.error("Error connecting to MongoDB:", error);
-  });
+};
+
+// Call the connectWithRetry function to initiate the connection and retries
+connectWithRetry();
 
 /*****************GLOBAL FUNCTIONS******************/
 function generateOTP() {
@@ -72,6 +84,24 @@ const verifyToken = (token, secretKey) => {
   }
 };
 
+// Create a storage engine using multer
+const storage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    // Define the destination directory for uploaded files (public/uploads)
+    callback(null, "public/uploads/");
+  },
+  filename: (req, file, callback) => {
+    // Generate a unique filename for each uploaded file
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const fileExtension = path.extname(file.originalname);
+    const fileName = file.fieldname + "-" + uniqueSuffix + fileExtension;
+    callback(null, fileName);
+  },
+});
+
+// Create an instance of the multer middleware with the defined storage engine
+const upload = multer({ storage });
+
 /*********************ROUTES*************************/
 
 app.get("/", (req, res) => {
@@ -85,7 +115,34 @@ app.get("/", (req, res) => {
     });
 });
 
+// app.get("/lenders", async (req, res) => {
+//   console.log('fetching lender data...');
+//   try {
+//     // Use the find method to retrieve all lender documents from the database
+//     const lenders = await Lender.find();
+
+//     // Check if there are lenders in the database
+//     if (lenders.length === 0) {
+//       return res.status(404).json({ error: "No lenders found" });
+//     }
+
+//     // Extract the PDF data from the first lender document
+//     const pdfFileName = lenders[0].AuthorizedPersonel.NRCFilePath;
+
+//     // Specify the path where you want to store the PDF in the public directory
+//     const pdfFilePath = path.join(__dirname, '\\public\\uploads\\documents-1695560436519-383099562.pdf');
+//     console.log(pdfFilePath);
+
+//     // Send the PDF file as a response
+//     res.sendFile(pdfFilePath);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: "Internal server error" });
+//   }
+// });
+
 app.get("/lenders", async (req, res) => {
+  console.log("fetching lender data...");
   try {
     // Use the find method to retrieve all lender documents from the database
     const lenders = await Lender.find();
@@ -95,22 +152,39 @@ app.get("/lenders", async (req, res) => {
       return res.status(404).json({ error: "No lenders found" });
     }
 
-    // Extract the PDF data from the first lender document
-    const pdfData = lenders[0].AuthorizedPersonel.NRC.uri;
-    const pdfFileName = lenders[0].AuthorizedPersonel.NRC.name;
-
-    // Specify the path where you want to store the PDF in the public directory
-    const pdfFilePath = path.join(__dirname, "public", pdfFileName);
-
-    // Write the PDF data to the file
-    fs.writeFileSync(pdfFilePath, pdfData, "base64");
-
-    // Send the PDF file as a response
-    res.sendFile(pdfFilePath);
+    console.log(lenders);
+    // res.json(lenders);
+    // Render the "lenders.ejs" view and pass the lenders data
+    res.render("admin-dashboard", { lenders });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
   }
+});
+
+app.post("/view-pdf", (req, res) => {
+  const pdfPath = req.body.pdfPath; // Get the PDF file path from the request body
+
+  
+  // Check if pdfPath is defined
+  if (!pdfPath) {
+    return res.status(400).send("PDF path is missing in the request body");
+  }
+
+  const pdfFilePath = path.join(__dirname, pdfPath);
+  const cleanedFilePath = pdfFilePath.replace(/"/g, ""); // Remove double quotes if present
+
+  console.log(cleanedFilePath);
+  
+  const newCleanedPath = cleanedFilePath.replace(/\\/g, '\\\\');
+
+  console.log(newCleanedPath);
+  // Serve the PDF file
+  res.sendFile(newCleanedPath);
+});
+
+app.get('/view', (req, res) => {
+  res.sendFile('E:\\Year 4\\2nd Semester\\4400 - Project\\Final Year Project\\amastata-server\\public\\uploads\\documents-1695794458817-141235074.pdf');
 });
 
 app.get("/user-data", async (req, res) => {
@@ -312,24 +386,6 @@ app.post("/verify", (req, res) => {
   }
 });
 
-// Create a storage engine using multer
-const storage = multer.diskStorage({
-  destination: (req, file, callback) => {
-    // Define the destination directory for uploaded files (public/uploads)
-    callback(null, "public/uploads/");
-  },
-  filename: (req, file, callback) => {
-    // Generate a unique filename for each uploaded file
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const fileExtension = path.extname(file.originalname);
-    const fileName = file.fieldname + "-" + uniqueSuffix + fileExtension;
-    callback(null, fileName);
-  },
-});
-
-// Create an instance of the multer middleware with the defined storage engine
-const upload = multer({ storage });
-
 app.post(
   "/apply-lender-account",
   upload.array("documents", 2),
@@ -337,6 +393,7 @@ app.post(
     console.log("Received a POST request");
     console.log("Request Headers:", req.headers);
     console.log("Request Body:", req.body);
+
     try {
       // Access the form data and uploaded files
       const formData = {
@@ -345,45 +402,48 @@ app.post(
         LenderCompleteSetup: JSON.parse(req.body.LenderCompleteSetup),
       };
 
-      console.log('UPLOADED FILES: ', JSON.stringify(req.files, null, 2));
+      console.log("UPLOADED FILES: ", JSON.stringify(req.files, null, 2));
 
-
-      // Access the uploaded files
+      // Access the uploaded files directly
       const NRCFile = req.files[0]; // Assuming it's a single file
       const KYCDocumentFile = req.files[1]; // Assuming it's a single file
-
-      
 
       // Move the uploaded files to a permanent location (e.g., public/uploads)
       const NRCFilePath = NRCFile.path;
       const KYCDocumentFilePath = KYCDocumentFile.path;
 
-      // Write the files to the permanent location
-      fs.writeFileSync(NRCFilePath, NRCFile.originalname);
-      fs.writeFileSync(KYCDocumentFilePath, KYCDocumentFile.originalname);
+      try {
+        // Write the files to the permanent location
+        fs.writeFileSync(NRCFilePath, JSON.stringify(NRCFile.buffer));
+        fs.writeFileSync(
+          KYCDocumentFilePath,
+          JSON.stringify(KYCDocumentFile.buffer)
+        );
+      } catch (error) {
+        console.log('Error Writing File: ', error);
+      } finally {
+        console.log('Saving Data...');
+        // Save the form data and file paths to MongoDB
+        const lenderData = new Lender({
+          LenderCompanyInfo: formData.LenderCompanyInfo,
+          AuthorizedPersonel: {
+            ...formData.AuthorizedPersonel,
+            NRCFilePath: NRCFilePath, // Store the NRC file path
+          },
+          LenderKYCDocument: {
+            KYCDocumentFilePath: KYCDocumentFilePath, // Store the KYC Document file path
+          },
+          LenderCompleteSetup: formData.LenderCompleteSetup,
+        });
 
-      // Save the form data and file paths to MongoDB
-      const lenderData = new Lender({
-        LenderCompanyInfo: formData.LenderCompanyInfo,
-        AuthorizedPersonel: {
-          ...formData.AuthorizedPersonel,
-          NRCFilePath: NRCFilePath, // Store the NRC file path
-        },
-        LenderKYCDocument: {
-          KYCDocumentFilePath: KYCDocumentFilePath, // Store the KYC Document file path
-        },
-        LenderCompleteSetup: formData.LenderCompleteSetup,
-      });
-
-      await lenderData.save();
-
-      // Respond with a success message
-      res
-        .status(201)
-        .json({
+        await lenderData.save();
+        console.log('Lender Application Sent!');
+        // Respond with a success message
+        res.status(201).json({
           isValid: true,
           message: "Lender application sent successfully",
         });
+      }
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Internal server error" });

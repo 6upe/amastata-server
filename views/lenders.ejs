@@ -1,0 +1,48 @@
+<!-- lenders.ejs -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Lender Cards</title>
+</head>
+<body>
+  <h1>Lender Cards</h1>
+  <% lenders.forEach((lender) => { %>
+    <div class="lender-card">
+      <h2><%= lender.LenderCompanyInfo.companyName %></h2>
+      <p>Other lender information goes here...</p>
+      <button onclick="viewPDF('<%= JSON.stringify(lender.LenderKYCDocument.KYCDocumentFilePath) %>')">View KYC PDF</button>
+    </div>
+  <% }); %>
+
+  <script>
+    function viewPDF(filePath) {
+  const requestBody = JSON.stringify({ pdfPath: filePath }); // Stringify the file path as JSON
+
+  // On the client side
+fetch("/view-pdf", {
+  method: "POST",
+  body: requestBody,
+  headers: {
+    "Content-Type": "application/json",
+  },
+})
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
+    }
+    return response.blob(); // Treat the response as a binary blob
+  })
+  .then((pdfBlob) => {
+    // Create a URL for the PDF blob and open it in a new window or display it in an iframe
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    window.open(pdfUrl); // Opens the PDF in a new tab/window
+  })
+  .catch((error) => {
+    console.error("Fetch error:", error);
+  });
+
+}
+
+  </script>
+</body>
+</html>

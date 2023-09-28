@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
+      crossorigin="anonymous"
+    />
+    <style>
+      body {
+        font-family: "Calibri";
+        overflow: hidden;
+        padding-top: 10px; /* Adjust the body padding to accommodate the fixed navbar */
+      }
+
+      .navbar {
+        background-color: #ffffff;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+        padding: 15px;
+        border-radius: 10px;
+        margin: 10px 100px;
+      }
+
+      .nav-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+      }
+
+      .nav-logo {
+        width: 120px;
+        margin-left: 15px;
+      }
+
+      .logout-icon {
+        width: 20px;
+        margin-right: 20px; /* Add margin to separate the logout icon from the right edge */
+      }
+
+      .container {
+        display: flex;
+        margin: 0 50px;
+        margin-top: 130px;
+        height: 75vh;
+
+      }
+
+      .left {
+        flex: 1;
+        overflow-y: scroll;
+        padding: 20px;
+        margin: 0 30px;
+        margin-left: 40px;
+      }
+
+      .right {
+        flex: 2;
+        border: 0.1px solid #f0eded;
+        padding: 5px;
+        background-color: #ffffff;
+        margin: 10px;
+        border-radius: 10px;
+        margin-left: 40px;
+        padding-left: 30px;
+      }
+
+      .card {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+
+      .buttons {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        margin-top: 10px;
+      }
+
+      .button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      .reject {
+        background-color: #ff5733;
+        color: #fff;
+      }
+
+      .approve {
+        background-color: #33cc33;
+        color: #fff;
+      }
+
+      /* Customize the scrollbar */
+      ::-webkit-scrollbar {
+        width: 12px; /* Width of the entire scrollbar */
+      }
+
+      ::-webkit-scrollbar-track {
+        background: #ffffff; /* Color of the track (the background behind the scrollbar) */
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background-color: #f8f8f8; /* Color of the thumb (the draggable part of the scrollbar) */
+        border-radius: 6px; /* Rounded corners */
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: #ffffff; /* Color of the thumb when hovered */
+      }
+
+      .applicant-info {
+        font-size: 12px;
+      }
+
+      .logo {
+        max-width: 100px; /* Adjust the maximum width as needed */
+      }
+
+      .company-name {
+        font-weight: bold;
+        margin-top: 10px;
+      }
+
+      .divider {
+        border-top: 1px solid #ccc;
+        margin-top: 10px;
+      }
+
+      .section-heading {
+        font-weight: bold;
+        margin-top: 20px;
+      }
+
+      /* Add additional styling for the text area as needed */
+      .message-textarea {
+        width: 100%;
+        padding: 10px;
+        margin-top: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        resize: vertical;
+      }
+
+    </style>
+
+  </head>
+  <body onload="setValues();">
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+      <div class="nav-container">
+
+        <a class="navbar-brand" href="#">
+          <img
+            class="nav-logo"
+            src="/assets/images/AmaStata logo.png"
+            alt="Logo"
+            width="50"
+          />
+        </a>
+
+        <a class="nav-link" href="#">
+          <img
+            src="/assets/images/NoPath - Copy (34).png"
+            alt="Logout"
+            class="logout-icon"
+          />
+        </a>
+
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="left">
+        <div
+          style="
+            position: absolute;
+            z-index: 999;
+            top: 110px;
+            background-color: #fff;
+            width: 300px;
+          "
+        >
+          
+        </div>
+
+        <% for (let i = 0; i < lenders.length; i++) { %> <% let lender =
+        lenders[i]; let arg_companyName =
+        lenders[i].LenderCompanyInfo.companyName; let
+        arg_businessOperationalAddress
+        =lenders[i].LenderCompanyInfo.businessOperationalAddress; let
+        arg_phoneNumberPrimaryCompany =
+        lenders[i].LenderCompanyInfo.phoneNumberPrimary; let arg_businessWebsite
+        = lenders[i].LenderCompanyInfo.businessWebsite; let arg_firstname =
+        lenders[i].AuthorizedPersonel.firstname; let arg_lastname =
+        lenders[i].AuthorizedPersonel.lastname; let arg_phoneNumberPrimary =
+        lenders[i].AuthorizedPersonel.phoneNumberPrimary; let arg_emailAddress =
+        lenders[i].AuthorizedPersonel.emailAddress; let arg_occupation =
+        lenders[i].AuthorizedPersonel.occupation; let arg_NRCPath =
+        lenders[i].AuthorizedPersonel.NRCFilePath; let arg_KYCPath =
+        lenders[i].LenderKYCDocument.KYCDocumentFilePath; let
+        arg_businessEmailAddress =
+        lenders[i].LenderCompleteSetup.businessEmailAddress; let arg_lenderID =
+        lenders[i]._id; %>
+        <div class="card">
+          <div style="display: flex; align-items: center">
+            <img
+              class="logo"
+              src="/assets/images/NoPath - Copy (11).png"
+              alt="Company Logo"
+            />
+            <div>
+              <h4><%= lender.LenderCompanyInfo.companyName %></h4>
+
+              <button
+                onclick="viewApplication(
+                    '<%= arg_companyName %>',
+                    '<%= arg_businessOperationalAddress %>',
+                    '<%= arg_phoneNumberPrimaryCompany %>',
+                    '<%= arg_businessWebsite %>',
+                    '<%= arg_businessEmailAddress %>',
+                    '<%= arg_firstname %>',
+                    '<%= arg_lastname %>',
+                    '<%= arg_phoneNumberPrimary %>',
+                    '<%= arg_emailAddress %>',
+                    '<%= arg_occupation %>',
+                    '<%= arg_KYCPath.replace(/\\/g, '\\\\') %>',
+                    '<%= arg_NRCPath.replace(/\\/g, '\\\\') %>'
+                    
+                );"
+                class="btn btn-primary btn-sm"
+              >
+                View Application
+              </button>
+            </div>
+          </div>
+        </div>
+        <% } %>
+      </div>
+      <div class="right">
+        <div class="loading-spinner-container" style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%;">
+          <div class="loading-spinner"  style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%;">
+          <div class="spinner-border text-primary" style="width: 100px; height: 100px;" role="status">
+            
+          </div>
+        </div>
+        </div>
+        
+
+        <div class="applicant-info">
+          <div style="display: flex; align-items: center">
+            <img
+              class="logo"
+              src="/assets/images/NoPath - Copy (11).png"
+              alt="Company Logo"
+            />
+            <div>
+              <h4 id="companyName">Bwangu Loans</h4>
+              <button id="viewPdfButtonKYC" class="btn btn-secondary btn-sm">
+                View KYC Documents
+              </button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div>
+            <div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+            "
+          >
+            <div style="padding: 0px; width: 100%;">
+              <div style="display: flex;">
+                Business Operational Address:
+                <p  style="font-weight: bold;" id="businessOperationalAddress"></p>
+              </div>
+              <div style="display: flex;">
+                Phone Number Primary:
+                <p  style="font-weight: bold;" id="phoneNumberPrimaryCompany"></p>
+              </div>
+              <div  style="display: flex;">
+                Business Website:
+                <a
+                  id="businessWebsite"
+                  href="https://www.example.com"
+                  target="_blank"
+                ></a>
+              </div>
+              <div  style="display: flex;">
+                Business Email Address:
+                <p  style="font-weight: bold;" id="businessEmailAddress"></p>
+              </div>
+            </div>
+
+            <div style="padding: 0px; width: 100%;">
+              <div style="display: flex;" class="section-heading">Authorized Personnel
+                <button id="viewPdfButtonNRC" class="btn btn-secondary btn-sm">
+                  View NRC
+                </button>
+              </div>
+              <div  style="display: flex;">
+                First Name:
+                <p  style="font-weight: bold;" id="firstname"></p>
+              </div>
+              <div  style="display: flex;">
+                Last Name:
+                <p  style="font-weight: bold;" id="lastname"></p>
+              </div>
+              <div style="display: flex;">
+                Phone Number (Primary):
+                <p  style="font-weight: bold;" id="phoneNumberPrimary"></p>
+              </div style="display: flex;">
+              <div style="display: flex;">
+                Email Address:
+                <p  style="font-weight: bold;" id="emailAddress"></p>
+              </div>
+              <div style="display: flex;">
+                Occupation:
+                <p  style="font-weight: bold;" id="occupation"></p>
+              </div>
+              
+            </div>
+          </div>
+<textarea
+            class="message-textarea"
+            placeholder="Message to Applicant"
+          ></textarea>
+          <div class="buttons">
+            <button class="button reject">Reject</button>
+            <button class="button approve">Approve</button>
+          </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const companyName = document.getElementById("companyName");
+      const businessOperationalAddress = document.getElementById(
+        "businessOperationalAddress"
+      );
+      const phoneNumberPrimaryCompany = document.getElementById(
+        "phoneNumberPrimaryCompany"
+      );
+      const businessWebsite = document.getElementById("businessWebsite");
+      const firstname = document.getElementById("firstname");
+      const lastname = document.getElementById("lastname");
+      const phoneNumberPrimary = document.getElementById("phoneNumberPrimary");
+      const emailAddress = document.getElementById("emailAddress");
+      const occupation = document.getElementById("occupation");
+      const NRCPath = document.getElementById("NRCPath");
+      const KYCPath = document.getElementById("KYCPath");
+      const businessEmailAddress = document.getElementById(
+        "businessEmailAddress"
+      );
+      const lenderID = "id"; //UNIQUE DOCUMENT ID
+
+      const viewPdfButtonKYC = document.getElementById("viewPdfButtonKYC");
+      let KYCFilePath = "public\\document.pdf";
+
+      const viewPdfButtonNRC = document.getElementById("viewPdfButtonNRC");
+      let NRCFilePath = "public\\document.pdf";
+
+
+      const rightContainer = document.querySelector(".applicant-info");
+      const loadingSpinner = document.querySelector(".loading-spinner");
+      const loadingSpinnerContainer = document.querySelector(".loading-spinner-container");
+      function setValues() {
+        // Show the loading spinner
+        loadingSpinnerContainer.style.display = "block";
+        // loadingSpinner.style.display = "block";
+
+        // Hide the right container (or set its visibility as needed)
+        rightContainer.style.display = "none";
+
+        // Simulate loading (replace this with your actual data loading logic)
+        // setTimeout(function () {
+        //   // After loading, hide the loading spinner and show the right container
+        //   loadingSpinner.style.display = "none";
+        //   rightContainer.style.display = "block";
+
+        //   // Update the content (e.g., companyName)
+        //   companyName.innerText = "jsValue";
+        // }, 2000); // Simulate a 2-second loading time (replace with your actual loading time)
+      }
+
+      function viewApplication(
+        para_companyName,
+        para_businessOperationalAddress,
+        para_phoneNumberPrimaryCompany,
+        para_businessWebsite,
+        para_businessEmailAddress,
+        para_firstname,
+        para_lastname,
+        para_phoneNumberPrimary,
+        para_emailAddress,
+        para_occupation,
+        para_KYCFilePath,
+        para_NRCFilePath
+      ) {
+        companyName.innerText = para_companyName;
+        businessOperationalAddress.innerText = para_businessOperationalAddress;
+        phoneNumberPrimaryCompany.innerText = para_phoneNumberPrimaryCompany;
+        businessWebsite.innerText = para_businessWebsite;
+        businessEmailAddress.innerText = para_businessEmailAddress;
+        firstname.innerText = para_firstname;
+        lastname.innerText = para_lastname;
+        phoneNumberPrimary.innerText = para_phoneNumberPrimary;
+        emailAddress.innerText = para_emailAddress;
+        occupation.innerText = para_occupation;
+
+        KYCFilePath = para_KYCFilePath;
+        NRCFilePath = para_NRCFilePath;
+
+        rightContainer.style.display = "block";
+        // loadingSpinner.style.display = "none";
+        loadingSpinnerContainer.style.display = "none";
+
+      }
+
+      viewPdfButtonKYC.addEventListener("click", function () {
+        console.log(KYCFilePath);
+        viewPDF(KYCFilePath);
+      });
+
+      viewPdfButtonNRC.addEventListener("click", function () {
+        console.log(NRCFilePath);
+        viewPDF(NRCFilePath);
+      });
+
+      function viewPDF(filePath) {
+        const requestBody = JSON.stringify({ pdfPath: filePath }); // Stringify the file path as JSON
+
+        // On the client side
+        fetch("/view-pdf", {
+          method: "POST",
+          body: requestBody,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error("Network response was not ok");
+            }
+            return response.blob(); // Treat the response as a binary blob
+          })
+          .then((pdfBlob) => {
+            // Create a URL for the PDF blob and open it in a new window or display it in an iframe
+            const pdfUrl = URL.createObjectURL(pdfBlob);
+            window.open(pdfUrl); // Opens the PDF in a new tab/window
+          })
+          .catch((error) => {
+            console.error("Fetch error:", error);
+          });
+      }
+    </script>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+      crossorigin="anonymous"
+    ></script>
+  </body>
+</html>
