@@ -153,9 +153,16 @@ app.get("/lenders", async (req, res) => {
     }
 
     console.log(lenders);
-    // res.json(lenders);
-    // Render the "lenders.ejs" view and pass the lenders data
-    res.render("admin-dashboard", { lenders });
+
+    // Determine the response format based on the client's request
+    const acceptHeader = req.get("Accept");
+    if (acceptHeader && acceptHeader.includes("application/json")) {
+      // Respond with JSON if the client accepts JSON
+      res.status(200).json(lenders);
+    } else {
+      // Render the "lenders.ejs" view for other requests
+      res.render("admin-dashboard", { lenders });
+    }
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
@@ -206,6 +213,7 @@ app.get("/user-data", async (req, res) => {
     res.status(401).json({ error: "Unauthorized" });
   }
 });
+
 
 app.post("/debtor-login", async (req, res) => {
   const { email, password } = req.body;
@@ -400,6 +408,7 @@ app.post(
         LenderCompanyInfo: JSON.parse(req.body.LenderCompanyInfo),
         AuthorizedPersonel: JSON.parse(req.body.AuthorizedPersonel),
         LenderCompleteSetup: JSON.parse(req.body.LenderCompleteSetup),
+        LenderStatus: JSON.parse(req.body.LenderStatus),
       };
 
       console.log("UPLOADED FILES: ", JSON.stringify(req.files, null, 2));
@@ -434,7 +443,9 @@ app.post(
             KYCDocumentFilePath: KYCDocumentFilePath, // Store the KYC Document file path
           },
           LenderCompleteSetup: formData.LenderCompleteSetup,
-        });
+          LenderStatus: formData.LenderStatus,
+        },  
+        );
 
         await lenderData.save();
         console.log('Lender Application Sent!');
@@ -451,45 +462,94 @@ app.post(
   }
 );
 
-// // route for creating a lender account
-// app.post("/apply-lender-account", async (req, res) => {
-//   try {
-//     const lenderData = req.body; // Assuming the request body contains lenderDataArray
-//     const combinedLenderData = {
-//       LenderCompanyInfo: lenderData[0].data.LenderCompanyInfo,
-//       AuthorizedPersonel: {
-//         firstname: lenderData[1].data.AuthorizedPersonel.firstname,
-//         lastname: lenderData[1].data.AuthorizedPersonel.lastname,
-//         phoneNumberPrimary:
-//           lenderData[1].data.AuthorizedPersonel.phoneNumberPrimary,
-//         emailAddress: lenderData[1].data.AuthorizedPersonel.emailAddress,
-//         occupation: lenderData[1].data.AuthorizedPersonel.occupation,
-//         NRC: {
-//           uri: lenderData[1].data.AuthorizedPersonel.NRC.uri,
-//           type: lenderData[1].data.AuthorizedPersonel.NRC.mimeType,
-//           name: lenderData[1].data.AuthorizedPersonel.NRC.name,
-//         },
-//       },
-//       LenderKYCDocument:
-//       {
-//         uri: lenderData[2].data.LenderKYCDocument.uri,
-//         type: lenderData[2].data.LenderKYCDocument.mimeType,
-//         name: lenderData[2].data.LenderKYCDocument.name,
-//       },
-//       LenderCompleteSetup: lenderData[3].data.LenderCompleteSetup,
-//     };
+// Define a route to handle form submission and send the email
+app.post('/approve-mfi', async (req, res) => {
+  const { to, subject, message, mfi_id } = req.body;
+  console.log('Approving MFI (server-side)');
+  // Configure Nodemailer to send the email
+  const nodemailer = require('nodemailer');
+  const transporter = nodemailer.createTransport({
+    // Configure your email provider's SMTP settings here
+    service: 'Gmail',
+    auth: {
+      user: 'katongobupe444@gmail.com',
+      pass: 'aqbm rche vjnf gbbu',
+    },
+  });
 
-//     console.log(combinedLenderData);
+  const mailOptions = {
+    from: 'katongobupe444@gmail.com',
+    to,
+    subject,
+    html: message,
+  };
 
-//     // Create a new Lender document and save it to the database
-//     const newLender = new Lender(combinedLenderData);
-//     await newLender.save();
+  try {
+    const updatedDocument = await Lender.findOneAndUpdate(
+      { _id: mfi_id },
+      { $set: { 'LenderStatus.status': 'approved' } },
+      { new: true }
+    );
 
-//     res
-//       .status(201)
-//       .json({ isValid: true, message: "Lender application sent successfully" });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ isValid: true, message: "Internal server error" });
-//   }
-// });
+    if (!updatedDocument) {
+      return res.status(404).json({ error: 'MFI not found' });
+    }
+    // Send the email
+    await transporter.sendMail(mailOptions);
+    console.log('Email sent!');
+    res.send('Email sent successfully!');
+    
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Failed to send email');
+  }
+});
+
+app.post("/lender-login", async (req, res) => {
+  const { email, password } = req.body;
+
+  // Check if email and password are not empty
+  if (!email || !password) {
+    return res.status(400).send({ message: "Email and password are required" });
+  }
+
+  // Regular expression for basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  // Check if email matches the email format
+  if (!emailRegex.test(email)) {
+    return res.status(400).send({ message: "Invalid email format" });
+  }
+
+  console.log(req.body);
+
+  try {
+    // Query the database to find the user by email
+    
+    const user = await Lender.findOne({ "LenderCompleteSetup.businessEmailAddress": email });
+
+    // If the user does not exist, return an error
+    if (!user) {
+      return res.status(401).send({ message: "User does not exist" });
+    }
+
+    // Check if the password matches the stored hash
+    const isPasswordValid = await user.comparePassword(password);
+
+    if (!isPasswordValid) {
+      return res.status(401).send({ message: "Invalid Password" });
+    }
+
+    // If the credentials are valid, create a JWT
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1h", // Token expiration time (adjust as needed)
+    });
+
+    // Send the JWT as a response
+    console.log("Login Success: ", email, token);
+    res.send({ user: email, token: token });
+  } catch (error) {
+    console.error("Error during login:", error);
+    res.status(500).send({ message: "Internal server error" });
+  }
+});

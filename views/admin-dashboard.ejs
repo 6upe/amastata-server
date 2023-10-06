@@ -44,8 +44,8 @@
       .container {
         display: flex;
         margin: 0 50px;
-        margin-top: 130px;
-        height: 75vh;
+        margin-top: 100px;
+        height: 80vh;
 
       }
 
@@ -165,6 +165,7 @@
             alt="Logo"
             width="50"
           />
+
         </a>
 
         <a class="nav-link" href="#">
@@ -233,7 +234,8 @@
                     '<%= arg_emailAddress %>',
                     '<%= arg_occupation %>',
                     '<%= arg_KYCPath.replace(/\\/g, '\\\\') %>',
-                    '<%= arg_NRCPath.replace(/\\/g, '\\\\') %>'
+                    '<%= arg_NRCPath.replace(/\\/g, '\\\\') %>',
+                    '<%= arg_lenderID %>'
                     
                 );"
                 class="btn btn-primary btn-sm"
@@ -256,6 +258,7 @@
         
 
         <div class="applicant-info">
+         
           <div style="display: flex; align-items: center">
             <img
               class="logo"
@@ -268,6 +271,11 @@
                 View KYC Documents
               </button>
             </div>
+          </div>
+
+          <div style="display: flex;">
+            <p>Application Tracking Number: </p>
+            <b class="text-danger" id="application_tracking_number">demo</b>
           </div>
 
           <div class="divider"></div>
@@ -304,8 +312,9 @@
             </div>
 
             <div style="padding: 0px; width: 100%;">
-              <div style="display: flex;" class="section-heading">Authorized Personnel
-                <button id="viewPdfButtonNRC" class="btn btn-secondary btn-sm">
+              <div style="display: flex;" class="section-heading">
+                <h5 style="font-weight: bold; padding-right: 5px;">Authorized Personnel: </h5>
+                <button id="viewPdfButtonNRC" class="btn btn-warning btn-sm">
                   View NRC
                 </button>
               </div>
@@ -332,13 +341,13 @@
               
             </div>
           </div>
-<textarea
+          <textarea
             class="message-textarea"
             placeholder="Message to Applicant"
           ></textarea>
           <div class="buttons">
-            <button class="button reject">Reject</button>
-            <button class="button approve">Approve</button>
+            <button id="rejectMFIBtn" class="button reject">Reject</button>
+            <button id="approveMFIBtn" class="button approve">Approve</button>
           </div>
 
           </div>
@@ -347,6 +356,9 @@
     </div>
 
     <script>
+
+
+
       const companyName = document.getElementById("companyName");
       const businessOperationalAddress = document.getElementById(
         "businessOperationalAddress"
@@ -365,7 +377,7 @@
       const businessEmailAddress = document.getElementById(
         "businessEmailAddress"
       );
-      const lenderID = "id"; //UNIQUE DOCUMENT ID
+      const lenderID = document.getElementById('application_tracking_number');
 
       const viewPdfButtonKYC = document.getElementById("viewPdfButtonKYC");
       let KYCFilePath = "public\\document.pdf";
@@ -377,23 +389,11 @@
       const rightContainer = document.querySelector(".applicant-info");
       const loadingSpinner = document.querySelector(".loading-spinner");
       const loadingSpinnerContainer = document.querySelector(".loading-spinner-container");
+
       function setValues() {
         // Show the loading spinner
         loadingSpinnerContainer.style.display = "block";
-        // loadingSpinner.style.display = "block";
-
-        // Hide the right container (or set its visibility as needed)
         rightContainer.style.display = "none";
-
-        // Simulate loading (replace this with your actual data loading logic)
-        // setTimeout(function () {
-        //   // After loading, hide the loading spinner and show the right container
-        //   loadingSpinner.style.display = "none";
-        //   rightContainer.style.display = "block";
-
-        //   // Update the content (e.g., companyName)
-        //   companyName.innerText = "jsValue";
-        // }, 2000); // Simulate a 2-second loading time (replace with your actual loading time)
       }
 
       function viewApplication(
@@ -408,7 +408,8 @@
         para_emailAddress,
         para_occupation,
         para_KYCFilePath,
-        para_NRCFilePath
+        para_NRCFilePath,
+        para_id
       ) {
         companyName.innerText = para_companyName;
         businessOperationalAddress.innerText = para_businessOperationalAddress;
@@ -423,11 +424,17 @@
 
         KYCFilePath = para_KYCFilePath;
         NRCFilePath = para_NRCFilePath;
+        lenderID.innerText = para_id;
 
-        rightContainer.style.display = "block";
-        // loadingSpinner.style.display = "none";
-        loadingSpinnerContainer.style.display = "none";
+        setTimeout(function () {
+          // After loading, hide the loading spinner and show the right container
+          loadingSpinnerContainer.style.display = "none";
+          rightContainer.style.display = "block";
 
+        }, 1000); // Simulate a 1-second loading time (replace with your actual loading time)
+        
+        loadingSpinnerContainer.style.display = "block";
+        rightContainer.style.display = "none";
       }
 
       viewPdfButtonKYC.addEventListener("click", function () {
@@ -466,6 +473,47 @@
             console.error("Fetch error:", error);
           });
       }
+
+      
+      const approveMFIBtn = document.getElementById('approveMFIBtn');
+
+        approveMFIBtn.addEventListener("click", function () {
+          console.log('Approving Loan in progress...', lenderID.innerText);
+         
+
+            const formData = {
+              to: 'katongobupe@hotmail.com',
+              subject: 'Congratulations! ' + companyName.innerText,
+              message: `
+                <html>
+                  <body>
+                    <h1>Congratulations!</h1>
+                    <p>Your Amastata MFI Account has been approved.</p>
+                    <img src="https://i.ibb.co/Jvwm9FK/Ama-Stata-logo.png" alt="AmaStata-logo" width="150" >
+                  </body>
+                </html>
+              `,
+              mfi_id: lenderID.innerText
+            };
+
+            fetch("/approve-mfi", {
+          method: "POST",
+          body: JSON.stringify(formData),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+          .then((response) => {
+            //SET MFI ACCOUNT STATUS = APPROVED
+            console.log(response);
+          })
+          .catch((error) => {
+            console.error("Fetch error:", error);
+          });
+
+        });
+      
+
     </script>
 
     <script
