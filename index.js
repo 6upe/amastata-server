@@ -11,14 +11,18 @@ const mongoose = require("mongoose");
 const Admin = require("./database/models/Admin");
 const Lender = require("./database/models/Lender");
 const Debtor = require("./database/models/debtor");
+const SecuredLoanApplication = require("./database/models/SecuredLoanApplication");
+const UnsecuredLoanApplication = require("./database/models/UnsecuredLoanApplication");
+const calculateCreditScore = require("./AI Models/calculateCreditScore");
+
 const jwt = require("jsonwebtoken"); // You'll need to install the 'jsonwebtoken' package
 
 /****************GLOBAL VARIABLES*******************/
 const app = express();
 const port = process.env.PORT || 3000;
 const accountSid = process.env.TWILIO_CLIENT_ID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const client = require("twilio")(accountSid, authToken);
+const authTokenTwilio = process.env.TWILIO_AUTH_TOKEN;
+const client = require("twilio")(accountSid, authTokenTwilio);
 
 let SESSION_OPEN = false;
 let PHONE_NUMBER = "+260962893773";
@@ -39,6 +43,14 @@ app.use(
     cookie: { secure: false }, // Set secure to true in a production environment with HTTPS
   })
 );
+
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*'); // Replace '*' with the specific origin you want to allow
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+});
+
 /*******************SET VIEW ENGINE***********************/
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
@@ -59,7 +71,7 @@ const connectWithRetry = () => {
     })
     .catch((error) => {
       console.error("Error connecting to MongoDB:", error);
-      console.log("Retrying in 5 seconds...");
+      console.log("Retr---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ying in 5 seconds...");
       setTimeout(connectWithRetry, 5000); // Retry after 5 seconds
     });
 };
@@ -115,32 +127,6 @@ app.get("/", (req, res) => {
     });
 });
 
-// app.get("/lenders", async (req, res) => {
-//   console.log('fetching lender data...');
-//   try {
-//     // Use the find method to retrieve all lender documents from the database
-//     const lenders = await Lender.find();
-
-//     // Check if there are lenders in the database
-//     if (lenders.length === 0) {
-//       return res.status(404).json({ error: "No lenders found" });
-//     }
-
-//     // Extract the PDF data from the first lender document
-//     const pdfFileName = lenders[0].AuthorizedPersonel.NRCFilePath;
-
-//     // Specify the path where you want to store the PDF in the public directory
-//     const pdfFilePath = path.join(__dirname, '\\public\\uploads\\documents-1695560436519-383099562.pdf');
-//     console.log(pdfFilePath);
-
-//     // Send the PDF file as a response
-//     res.sendFile(pdfFilePath);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: "Internal server error" });
-//   }
-// });
-
 app.get("/lenders", async (req, res) => {
   console.log("fetching lender data...");
   try {
@@ -154,14 +140,29 @@ app.get("/lenders", async (req, res) => {
 
     console.log(lenders);
 
+    // Split lenders into three sets based on status
+    const approvedLenders = lenders.filter(lender => lender.LenderStatus.status === 'approved');
+    const rejectedLenders = lenders.filter(lender => lender.LenderStatus.status === 'rejected');
+    const pendingLenders = lenders.filter(lender => lender.LenderStatus.status === 'pending');
+
     // Determine the response format based on the client's request
     const acceptHeader = req.get("Accept");
     if (acceptHeader && acceptHeader.includes("application/json")) {
       // Respond with JSON if the client accepts JSON
-      res.status(200).json(lenders);
+      res.status(200).json({
+        approved: approvedLenders,
+        rejected: rejectedLenders,
+        pending: pendingLenders,
+        lenders: lenders
+      });
     } else {
       // Render the "lenders.ejs" view for other requests
-      res.render("admin-dashboard", { lenders });
+      res.render("admin-dashboard", {
+        lenders,
+        approvedLenders,
+        rejectedLenders,
+        pendingLenders
+      });
     }
   } catch (error) {
     console.error(error);
@@ -172,7 +173,6 @@ app.get("/lenders", async (req, res) => {
 app.post("/view-pdf", (req, res) => {
   const pdfPath = req.body.pdfPath; // Get the PDF file path from the request body
 
-  
   // Check if pdfPath is defined
   if (!pdfPath) {
     return res.status(400).send("PDF path is missing in the request body");
@@ -182,16 +182,18 @@ app.post("/view-pdf", (req, res) => {
   const cleanedFilePath = pdfFilePath.replace(/"/g, ""); // Remove double quotes if present
 
   console.log(cleanedFilePath);
-  
-  const newCleanedPath = cleanedFilePath.replace(/\\/g, '\\\\');
+
+  const newCleanedPath = cleanedFilePath.replace(/\\/g, "\\\\");
 
   console.log(newCleanedPath);
   // Serve the PDF file
   res.sendFile(newCleanedPath);
 });
 
-app.get('/view', (req, res) => {
-  res.sendFile('E:\\Year 4\\2nd Semester\\4400 - Project\\Final Year Project\\amastata-server\\public\\uploads\\documents-1695794458817-141235074.pdf');
+app.get("/view", (req, res) => {
+  res.sendFile(
+    "E:\\Year 4\\2nd Semester\\4400 - Project\\Final Year Project\\amastata-server\\public\\uploads\\documents-1695794458817-141235074.pdf"
+  );
 });
 
 app.get("/user-data", async (req, res) => {
@@ -204,7 +206,7 @@ app.get("/user-data", async (req, res) => {
   try {
     const user = await Debtor.findOne({ _id: userId });
     // Respond with the user's data
-    const userData = user.completeSetup.emailAddress;
+    const userData = user;
     console.log("User Data Fetched: ", userData);
     res.json(userData);
   } catch (error) {
@@ -214,6 +216,25 @@ app.get("/user-data", async (req, res) => {
   }
 });
 
+app.get("/lender-data", async (req, res) => {
+  const authToken = req.headers.authorization;
+  const secretKey = process.env.JWT_SECRET; // Replace with your actual secret key
+
+  const userId = verifyToken(authToken, secretKey);
+  console.log("Fetching User Data: ", userId);
+
+  try {
+    const user = await Lender.findOne({ _id: userId });
+    // Respond with the user's data
+    const userData = user;
+    console.log("Lender Data Fetched: ", userData);
+    res.json(userData);
+  } catch (error) {
+    console.log("Unauthorized Lender!");
+    // Handle token verification or data fetching errors
+    res.status(401).json({ error: "Unauthorized" });
+  }
+});
 
 app.post("/debtor-login", async (req, res) => {
   const { email, password } = req.body;
@@ -343,6 +364,12 @@ app.post("/verify", (req, res) => {
             .base64,
       },
       completeSetup: dataFromClient[3].data.completeSetup,
+      creditScoresVars: {
+        currentLoans: 0,
+        clearedLoans: 0,
+        defaultedLoans: 0,
+        creditScore: 0,
+      }
     };
 
     let email = dataFromClient[3].data.completeSetup.emailAddress;
@@ -429,9 +456,9 @@ app.post(
           JSON.stringify(KYCDocumentFile.buffer)
         );
       } catch (error) {
-        console.log('Error Writing File: ', error);
+        console.log("Error Writing File: ", error);
       } finally {
-        console.log('Saving Data...');
+        console.log("Saving Data...");
         // Save the form data and file paths to MongoDB
         const lenderData = new Lender({
           LenderCompanyInfo: formData.LenderCompanyInfo,
@@ -444,15 +471,15 @@ app.post(
           },
           LenderCompleteSetup: formData.LenderCompleteSetup,
           LenderStatus: formData.LenderStatus,
-        },  
-        );
+        });
 
-        await lenderData.save();
-        console.log('Lender Application Sent!');
+        const mfi_applicant = await lenderData.save();
+        console.log("Lender Application Sent!");
         // Respond with a success message
         res.status(201).json({
           isValid: true,
-          message: "Lender application sent successfully",
+          message: "Lender application sent successfully: " + mfi_applicant._id,
+          AP_No: mfi_applicant._id,
         });
       }
     } catch (error) {
@@ -463,22 +490,22 @@ app.post(
 );
 
 // Define a route to handle form submission and send the email
-app.post('/approve-mfi', async (req, res) => {
+app.post("/approve-mfi", async (req, res) => {
   const { to, subject, message, mfi_id } = req.body;
-  console.log('Approving MFI (server-side)');
+  console.log("Approving MFI (server-side)");
   // Configure Nodemailer to send the email
-  const nodemailer = require('nodemailer');
+  const nodemailer = require("nodemailer");
   const transporter = nodemailer.createTransport({
     // Configure your email provider's SMTP settings here
-    service: 'Gmail',
+    service: "Gmail",
     auth: {
-      user: 'katongobupe444@gmail.com',
-      pass: 'aqbm rche vjnf gbbu',
+      user: "katongobupe444@gmail.com",
+      pass: "aqbm rche vjnf gbbu",
     },
   });
 
   const mailOptions = {
-    from: 'katongobupe444@gmail.com',
+    from: "katongobupe444@gmail.com",
     to,
     subject,
     html: message,
@@ -487,23 +514,130 @@ app.post('/approve-mfi', async (req, res) => {
   try {
     const updatedDocument = await Lender.findOneAndUpdate(
       { _id: mfi_id },
-      { $set: { 'LenderStatus.status': 'approved' } },
+      { $set: { "LenderStatus.status": "approved" } },
       { new: true }
     );
 
     if (!updatedDocument) {
-      return res.status(404).json({ error: 'MFI not found' });
+      return res.status(404).json({ error: "MFI not found" });
     }
     // Send the email
     await transporter.sendMail(mailOptions);
-    console.log('Email sent!');
-    res.send('Email sent successfully!');
-    
+    console.log("Email sent!");
+    res.json({message: "Email sent successfully!"});
   } catch (error) {
     console.error(error);
-    res.status(500).send('Failed to send email');
+    res.status(500).send("Failed to send email");
   }
 });
+
+app.post("/reject-mfi", async (req, res) => {
+  const { to, subject, message, mfi_id } = req.body;
+  console.log("rejecting MFI (server-side)");
+  // Configure Nodemailer to send the email
+  const nodemailer = require("nodemailer");
+  const transporter = nodemailer.createTransport({
+    // Configure your email provider's SMTP settings here
+    service: "Gmail",
+    auth: {
+      user: "katongobupe444@gmail.com",
+      pass: "aqbm rche vjnf gbbu",
+    },
+  });
+
+  const mailOptions = {
+    from: "katongobupe444@gmail.com",
+    to,
+    subject,
+    html: message,
+  };
+
+  try {
+    const updatedDocument = await Lender.findOneAndUpdate(
+      { _id: mfi_id },
+      { $set: { "LenderStatus.status": "rejected" } },
+      { new: true }
+    );
+
+    if (!updatedDocument) {
+      return res.status(404).json({ error: "MFI not found" });
+    }
+    // Send the email
+    await transporter.sendMail(mailOptions);
+    console.log("Email sent!");
+    res.json({message: "Email sent successfully!"});
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Failed to send email");
+  }
+});
+
+app.post(
+  "/update-mfi-advert",
+  upload.array("LenderImages", 2),
+  async (req, res) => {
+    const authToken = req.headers.authorization;
+    const secretKey = process.env.JWT_SECRET;
+    console.log('Updating MFI advert: ', authToken);
+    const mfi = verifyToken(authToken, secretKey);
+    console.log("mfi Id :", mfi);
+    console.log("UPLOADED FILES: ", JSON.stringify(req.files, null, 2));
+
+    // Assuming you have two uploaded files (logo and catalog)
+    const logoFile = req.files[0];
+    const catalogFile = req.files[1];
+
+    const logoFilePath = logoFile.filename;
+    const catalogFilePath = catalogFile.filename;
+
+    // Access other form data
+    const { briefDesc, securedLoanInterest, unsecuredLoanInterest } = req.body;
+
+    try {
+      try {
+       // Write the files to the permanent location
+        fs.writeFileSync(logoFilePath, JSON.stringify(logoFilePath.buffer));
+        fs.writeFileSync(
+          catalogFilePath,
+          JSON.stringify(catalogFilePath.buffer)
+        );
+      } catch (err) {
+        console.log("Error writing Lender Images: ", err);
+      } finally {
+        console.log();
+        // Update the document with the new data and file paths
+        const updatedDocument = await Lender.findOneAndUpdate(
+          { _id: mfi },
+          {
+            $set: {
+              LenderStatus: {
+                status: "ready",
+              },
+              LenderAdvert: {
+                briefDesc,
+                securedLoanInterest,
+                unsecuredLoanInterest,
+                logo: "/uploads/" + logoFile.filename, // Store the file path or an empty string if file doesn't exist
+                catalogImage: "/uploads/" + catalogFile.filename, // Store the file path or an empty string if file doesn't exist
+              },
+            },
+          },
+          { new: true }
+        );
+
+        if (!updatedDocument) {
+          return res.status(404).json({ error: "MFI not found" });
+        }
+        console.log("Lender Adert updated...");
+        res.status(200).json({ message: "Data updated successfully" });
+      }
+    } catch (error) {
+      console.error("Error updating Lender Advert: ", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
 
 app.post("/lender-login", async (req, res) => {
   const { email, password } = req.body;
@@ -525,12 +659,18 @@ app.post("/lender-login", async (req, res) => {
 
   try {
     // Query the database to find the user by email
-    
-    const user = await Lender.findOne({ "LenderCompleteSetup.businessEmailAddress": email });
+
+    const user = await Lender.findOne({
+      "LenderCompleteSetup.businessEmailAddress": email,
+    });
 
     // If the user does not exist, return an error
     if (!user) {
       return res.status(401).send({ message: "User does not exist" });
+    }
+
+    if (user.LenderStatus.status == "pending") {
+      return res.status(401).send({ message: "MFI Approval Pending" });
     }
 
     // Check if the password matches the stored hash
@@ -547,9 +687,167 @@ app.post("/lender-login", async (req, res) => {
 
     // Send the JWT as a response
     console.log("Login Success: ", email, token);
-    res.send({ user: email, token: token });
+    res.send({ user: user._id, token: token });
   } catch (error) {
     console.error("Error during login:", error);
     res.status(500).send({ message: "Internal server error" });
   }
+});
+
+// Route handler for 'Collateral-based Loan' with file uploads
+app.post('/apply-secured-loan', upload.array('attachmentUris'), async (req, res) => {
+  
+  const authToken = req.headers.authorization;
+    const secretKey = process.env.JWT_SECRET;
+    console.log('Sending Data to MFI: ', req.body);
+    console.log('Uploaded files: ', req.files);
+    const debtorId = verifyToken(authToken, secretKey);
+    const debtor = await Debtor.findOne({ _id: debtorId });
+    
+    const debtorData = extractDebtorData(debtor);
+    const creditScore = calculateCreditScore(debtorData);
+    console.log(`${debtor.basicInformation.firstname} Credit Score: ${creditScore}`);
+
+    function extractDebtorData(debtor) {
+      return {
+        occupation: debtor.basicInformation.occupation,
+        outstandingLoans: debtor.creditScoresVars.currentLoans == null ? 0 : debtor.creditScoresVars.currentLoans,
+        clearedLoans: debtor.creditScoresVars.clearedLoans == null ? 0 : debtor.creditScoresVars.clearedLoans,
+        defaultedLoans: debtor.creditScoresVars.defaultedLoans == null ? 0 : debtor.creditScoresVars.defaultedLoans,
+      };
+    }
+
+    async function updateDebtorCreditScore(debtorId, creditScore) {
+      return Debtor.findOneAndUpdate(
+        { _id: debtorId },
+        {
+          $set: {
+            'creditScoresVars.currentLoans': +1,
+            'creditScoresVars.creditScore': creditScore,
+          },
+        },
+        { new: true }
+      );
+    }
+    
+    
+
+  try {
+    // Get data from the request
+    const {
+      lenderId,
+      amountRequested,
+      loanRepaymentDate,
+    } = req.body;
+
+    // Get file paths of uploaded documents
+    // Assuming you have two uploaded files (collateralImage and supportingDocx)
+    const collateralImage = req.files[0];
+    const supportingDocx = req.files[1];
+
+    const collateralImagePath = collateralImage.filename;
+    const supportingDocxPath = supportingDocx.filename;
+
+    try {
+      // Write the files to the permanent location
+       fs.writeFileSync(collateralImagePath, JSON.stringify(collateralImagePath.buffer));
+       fs.writeFileSync(supportingDocxPath, JSON.stringify(supportingDocxPath.buffer));
+     } catch (err) {
+       console.log("Error writing loan application files: ", err);
+     } finally {
+      // Create a new loan application document
+      const loanApplication = new SecuredLoanApplication({
+        debtorId,
+        lenderId,
+        amountRequested,
+        loanRepaymentDate,
+        collateralImagePath: "/uploads/" + collateralImagePath,
+        supportingDocxPath: "/uploads/" + supportingDocxPath
+      });
+
+      // Save the document to MongoDB
+      
+      await updateDebtorCreditScore(debtorId, creditScore);
+      await loanApplication.save();
+
+      console.log('Loan Applied Successfully');
+      
+      res.status(201).json({ message: 'Secured loan application submitted successfully' });
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.post('/apply-unsecured-loan', async (req, res) => {
+
+  try {
+    const authToken = req.headers.authorization;
+    const secretKey = process.env.JWT_SECRET;
+    const debtorId = verifyToken(authToken, secretKey);
+    console.log('Sending Data to MFI: ', debtorId);
+    const debtor = await Debtor.findOne({ _id: debtorId });
+    
+    const debtorData = extractDebtorData(debtor);
+    console.log('Credit score data: ', debtorData)
+    const creditScore = calculateCreditScore(debtorData);
+    console.log(`${debtor.basicInformation.firstname} Credit Score: ${creditScore}`);
+
+    const loanApplicationData = {
+      debtorId,
+      lenderId: req.body.lenderId,
+      amountRequested: req.body.amountRequested,
+      loanRepaymentDate: req.body.loanRepaymentDate,
+      creditScore,
+    };
+    
+    await createLoanApplication(loanApplicationData);
+    await updateDebtorCreditScore(debtorId, creditScore);
+
+    console.log('Loan Applied Successfully');
+    res.status(201).json({ message: 'Unsecured loan application submitted successfully' });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+
+  function extractDebtorData(debtor) {
+    return {
+      occupation: debtor.basicInformation.occupation,
+      outstandingLoans: debtor.creditScoresVars.currentLoans == null ? 0 : debtor.creditScoresVars.currentLoans,
+      clearedLoans: debtor.creditScoresVars.clearedLoans == null ? 0 : debtor.creditScoresVars.clearedLoans,
+      defaultedLoans: debtor.creditScoresVars.defaultedLoans == null ? 0 : debtor.creditScoresVars.defaultedLoans,
+    };
+  }
+  
+  async function createLoanApplication(loanApplicationData) {
+    const loanApplication = new UnsecuredLoanApplication(loanApplicationData);
+    await loanApplication.save();
+  }
+  
+  async function updateDebtorCreditScore(debtorId, creditScore) {
+    return Debtor.findOneAndUpdate(
+      { _id: debtorId },
+      {
+        $set: {
+          'creditScoresVars.currentLoans': +1,
+          'creditScoresVars.creditScore': creditScore,
+        },
+      },
+      { new: true }
+    );
+  }
+
+});
+
+app.get('/test', (req, res) => {
+  console.log('hi from the server');
+  res.json({message: 'hi from the server'});
+});
+
+app.post("/api/post-example", (req, res) => {
+  const { message } = req.body;
+  console.log("Received POST request with message: " + message);
+  res.json({ received: true, message: message });
 });

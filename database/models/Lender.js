@@ -26,6 +26,13 @@ const lenderSchema = new mongoose.Schema({
   },
   LenderStatus: {
     status: String
+  },
+  LenderAdvert:{
+    briefDesc: String,
+    logo: String,
+    securedLoanInterest: String,
+    unsecuredLoanInterest: String,
+    catalogImage: String
   }
 });
 
@@ -45,4 +52,6 @@ lenderSchema.methods.comparePassword = async function(candidatePassword) {
   }
 };
 
-module.exports = mongoose.model('Lender', lenderSchema);
+const Lender = mongoose.model("Lender", lenderSchema);
+
+module.exports = Lender;

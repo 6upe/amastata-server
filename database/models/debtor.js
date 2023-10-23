@@ -31,12 +31,17 @@ const debtorSchema = new mongoose.Schema({
     password: String,
     confirmPassword: String,
   },
+  creditScoresVars: {
+    currentLoans: Number,
+    clearedLoans: Number,
+    defaultedLoans: Number,
+    creditScore: Number
+  }
 });
 
 debtorSchema.pre("save", async function (next) {
   const salt = await bcrypt.genSalt();
   this.completeSetup.password = await bcrypt.hash(this.completeSetup.password, salt);
-     
   next();
 });
 
