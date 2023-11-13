@@ -211,7 +211,7 @@ const connectWithRetry = () => {
       console.log("Connected to MongoDB");
       app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
-        automatedReminder();
+        // automatedReminder();
       });
     })
     .catch((error) => {
