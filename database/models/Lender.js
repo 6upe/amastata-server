@@ -30,8 +30,8 @@ const lenderSchema = new mongoose.Schema({
   LenderAdvert:{
     briefDesc: String,
     logo: String,
-    securedLoanInterest: String,
-    unsecuredLoanInterest: String,
+    securedLoanInterest: [String],
+    unsecuredLoanInterest: [String],
     catalogImage: String
   }
 });

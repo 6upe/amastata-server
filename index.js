@@ -14,6 +14,7 @@ const Debtor = require("./database/models/debtor");
 const SecuredLoanApplication = require("./database/models/SecuredLoanApplication");
 const UnsecuredLoanApplication = require("./database/models/UnsecuredLoanApplication");
 const calculateCreditScore = require("./AI Models/calculateCreditScore");
+const nodemailer = require("nodemailer");
 
 const jwt = require("jsonwebtoken"); // You'll need to install the 'jsonwebtoken' package
 
@@ -27,6 +28,17 @@ const client = require("twilio")(accountSid, authTokenTwilio);
 let SESSION_OPEN = false;
 let PHONE_NUMBER = "+260962893773";
 let VERIFICATION_CODE = 1234;
+
+// Configure Nodemailer to send the email
+
+const transporter = nodemailer.createTransport({
+  // Configure your email provider's SMTP settings here
+  service: "Gmail",
+  auth: {
+    user: "katongobupe444@gmail.com",
+    pass: "aqbm rche vjnf gbbu",
+  },
+});
 
 /*******************MIDDLEWARE***********************/
 app.use(cors([]));
@@ -45,9 +57,9 @@ app.use(
 );
 
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*'); // Replace '*' with the specific origin you want to allow
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader("Access-Control-Allow-Origin", "*"); // Replace '*' with the specific origin you want to allow
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   next();
 });
 
@@ -57,6 +69,138 @@ app.set("views", path.join(__dirname, "views"));
 
 /**************DATABASE CONNECTION******************/
 const mongoDBConnection = process.env.MONGODB_URI;
+
+/*****************GLOBAL FUNCTIONS******************/
+// Function to send an alert via SMS and email
+function sendAlert(
+  phoneNumber,
+  emailAddress = "katongobupe@hotmail.com",
+  message
+) {
+  // TWILIO SEND OTP SMS
+  client.messages
+    .create({
+      body: message,
+      from: "+12678281437",
+      to: phoneNumber,
+    })
+    .then((message) => {
+      console.log(message.sid, " SMS sent to ", phoneNumber);
+    })
+    .catch((error) => {
+      console.error("Error sending OTP SMS:", error);
+    });
+
+  // SEND EMAIL
+
+  const mailOptions = {
+    from: "katongobupe444@gmail.com",
+    to: emailAddress,
+    subject: "Alert",
+    text: message,
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error("Error sending email:", error);
+    } else {
+      console.log("Email sent: " + info.response);
+    }
+  });
+}
+const calculateDaysDifference = (startDate, endDate) => {
+  // Calculate the number of milliseconds in a day
+  const oneDay = 24 * 60 * 60 * 1000;
+
+  console.log(startDate, endDate);
+  // Calculate the difference in days between the end date and the start date
+  const differenceInDays = Math.round((endDate - startDate) / oneDay);
+
+  console.log("DIFFERENCE IN DAYS: ", differenceInDays);
+
+  return differenceInDays;
+};
+
+async function automatedReminder() {
+  console.log("Preparing Reminder...");
+
+  try {
+    console.log("fetching loans...");
+    const securedLoans = await SecuredLoanApplication.find();
+    console.log("Secured loans Fetched!", securedLoans);
+    const unsecuredLoans = await UnsecuredLoanApplication.find();
+    console.log("UnsecuredLoans loans Fetched!", securedLoans);
+    console.log("Fetching Debtors Next...");
+    const debtors = await Debtor.find();
+    console.log("Debtors loans Fetched!");
+
+    if (securedLoans.length > 0) {
+      for (let i = 0; i < securedLoans.length; i++) {
+        // Access the specific loan's repayment date using securedLoans[i].loanRepaymentDate
+        if (calculateDaysDifference(Date.now(), new Date(securedLoans[i].loanRepaymentDate)) <= 5) {
+          for (let j = 0; j < debtors.length; j++) {
+            // Access the debtor using debtors[j] instead of debtors._id
+            if (debtors[j]._id == securedLoans[i].debtorId) {
+              console.log('Remind ', debtors[j].basicInformation.firstname, ' Loan is Due in ', calculateDaysDifference(Date.now(), new Date(securedLoans[i].loanRepaymentDate)), 'Days ', JSON.stringify(securedLoans[i]));
+            }
+          }
+        }
+      }
+    }
+
+    if (unsecuredLoans.length > 0) {
+      for (let i = 0; i < unsecuredLoans.length; i++) {
+        // Access the specific loan's repayment date using securedLoans[i].loanRepaymentDate
+        if (calculateDaysDifference(Date.now(), new Date(unsecuredLoans[i].loanRepaymentDate)) <= 5) {
+          for (let j = 0; j < debtors.length; j++) {
+            // Access the debtor using debtors[j] instead of debtors._id
+            if (debtors[j]._id == unsecuredLoans[i].debtorId) {
+              console.log('Remind ', debtors[j].basicInformation.firstname, ' Loan is Due in ', calculateDaysDifference(Date.now(), new Date(unsecuredLoans[i].loanRepaymentDate)), 'Days ', JSON.stringify(unsecuredLoans[i]));
+            }
+          }
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// async function automatedReminder() {
+//   console.log('Preparing Reminder...');
+
+//   try {
+//     // Fetch data concurrently using Promise.all
+//     const [securedLoans, debtors] = await Promise.all([
+//       SecuredLoanApplication.find().lean(),
+//       Debtor.find().lean(),
+//     ]);
+
+//     console.log('Loans: ', securedLoans);
+
+//     if (securedLoans.length > 0) {
+//       for (const securedLoan of securedLoans) {
+//         if (calculateDaysDifference(Date.now(), Date(securedLoan.loanRepaymentDate)) <= 5) {
+//           const debtor = debtors.find((d) => d._id == securedLoan.debtorId);
+//           if (debtor) {
+//             console.log(
+//               'Remind ',
+//               debtor.basicInformation.firstname,
+//               ' Loan is Due in ',
+//               calculateDaysDifference(Date.now(), Date(securedLoan.loanRepaymentDate)),
+//               'Days ',
+//               JSON.stringify(securedLoan)
+//             );
+//           }
+//         }
+//       }
+//     }
+//   } catch (error) {
+//     console.error(error);
+//   }
+// }
+
 const connectWithRetry = () => {
   mongoose
     .connect(mongoDBConnection, {
@@ -67,11 +211,14 @@ const connectWithRetry = () => {
       console.log("Connected to MongoDB");
       app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
+        automatedReminder();
       });
     })
     .catch((error) => {
       console.error("Error connecting to MongoDB:", error);
-      console.log("Retr---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ying in 5 seconds...");
+      console.log(
+        "Retr---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ying in 5 seconds..."
+      );
       setTimeout(connectWithRetry, 5000); // Retry after 5 seconds
     });
 };
@@ -79,7 +226,6 @@ const connectWithRetry = () => {
 // Call the connectWithRetry function to initiate the connection and retries
 connectWithRetry();
 
-/*****************GLOBAL FUNCTIONS******************/
 function generateOTP() {
   const min = 1000; // Minimum 4-digit number
   const max = 9999; // Maximum 4-digit number
@@ -138,12 +284,21 @@ app.get("/lenders", async (req, res) => {
       return res.status(404).json({ error: "No lenders found" });
     }
 
-    console.log(lenders);
+    // console.log(lenders);
 
     // Split lenders into three sets based on status
-    const approvedLenders = lenders.filter(lender => lender.LenderStatus.status === 'approved');
-    const rejectedLenders = lenders.filter(lender => lender.LenderStatus.status === 'rejected');
-    const pendingLenders = lenders.filter(lender => lender.LenderStatus.status === 'pending');
+    const approvedLenders = lenders.filter(
+      (lender) => lender.LenderStatus.status === "approved"
+    );
+    const rejectedLenders = lenders.filter(
+      (lender) => lender.LenderStatus.status === "rejected"
+    );
+    const pendingLenders = lenders.filter(
+      (lender) => lender.LenderStatus.status === "pending"
+    );
+    const readyLenders = lenders.filter(
+      (lender) => lender.LenderStatus.status === "ready"
+    );
 
     // Determine the response format based on the client's request
     const acceptHeader = req.get("Accept");
@@ -151,9 +306,10 @@ app.get("/lenders", async (req, res) => {
       // Respond with JSON if the client accepts JSON
       res.status(200).json({
         approved: approvedLenders,
+        ready: readyLenders,
         rejected: rejectedLenders,
         pending: pendingLenders,
-        lenders: lenders
+        lenders: lenders,
       });
     } else {
       // Render the "lenders.ejs" view for other requests
@@ -161,7 +317,7 @@ app.get("/lenders", async (req, res) => {
         lenders,
         approvedLenders,
         rejectedLenders,
-        pendingLenders
+        pendingLenders,
       });
     }
   } catch (error) {
@@ -207,8 +363,24 @@ app.get("/user-data", async (req, res) => {
     const user = await Debtor.findOne({ _id: userId });
     // Respond with the user's data
     const userData = user;
-    console.log("User Data Fetched: ", userData);
+    // console.log("User Data Fetched: ", userData);
     res.json(userData);
+  } catch (error) {
+    console.log("Unauthorized user!");
+    // Handle token verification or data fetching errors
+    res.status(401).json({ error: "Unauthorized" });
+  }
+});
+
+app.get("/debtors", async (req, res) => {
+  const authToken = req.headers.authorization;
+  const secretKey = process.env.JWT_SECRET; // Replace with your actual secret key
+
+  console.log("fetching all users");
+  try {
+    const debtors = await Debtor.find();
+
+    res.json(debtors);
   } catch (error) {
     console.log("Unauthorized user!");
     // Handle token verification or data fetching errors
@@ -227,7 +399,7 @@ app.get("/lender-data", async (req, res) => {
     const user = await Lender.findOne({ _id: userId });
     // Respond with the user's data
     const userData = user;
-    console.log("Lender Data Fetched: ", userData);
+    // console.log("Lender Data Fetched: ", userData);
     res.json(userData);
   } catch (error) {
     console.log("Unauthorized Lender!");
@@ -256,21 +428,26 @@ app.post("/debtor-login", async (req, res) => {
 
   try {
     // Query the database to find the user by email
-
+    console.log("trying to login..");
     const user = await Debtor.findOne({ "completeSetup.emailAddress": email });
-
+    console.log("result fetched..");
     // If the user does not exist, return an error
     if (!user) {
       return res.status(401).send({ message: "User does not exist" });
     }
 
+    console.log("User Available, checking password..");
+
     // Check if the password matches the stored hash
     const isPasswordValid = await user.comparePassword(password);
+
+    console.log("Password Checked....");
 
     if (!isPasswordValid) {
       return res.status(401).send({ message: "Invalid Password" });
     }
 
+    console.log("Assiging JWT Tokens....");
     // If the credentials are valid, create a JWT
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1h", // Token expiration time (adjust as needed)
@@ -369,7 +546,7 @@ app.post("/verify", (req, res) => {
         clearedLoans: 0,
         defaultedLoans: 0,
         creditScore: 0,
-      }
+      },
     };
 
     let email = dataFromClient[3].data.completeSetup.emailAddress;
@@ -493,16 +670,6 @@ app.post(
 app.post("/approve-mfi", async (req, res) => {
   const { to, subject, message, mfi_id } = req.body;
   console.log("Approving MFI (server-side)");
-  // Configure Nodemailer to send the email
-  const nodemailer = require("nodemailer");
-  const transporter = nodemailer.createTransport({
-    // Configure your email provider's SMTP settings here
-    service: "Gmail",
-    auth: {
-      user: "katongobupe444@gmail.com",
-      pass: "aqbm rche vjnf gbbu",
-    },
-  });
 
   const mailOptions = {
     from: "katongobupe444@gmail.com",
@@ -524,7 +691,7 @@ app.post("/approve-mfi", async (req, res) => {
     // Send the email
     await transporter.sendMail(mailOptions);
     console.log("Email sent!");
-    res.json({message: "Email sent successfully!"});
+    res.json({ message: "Email sent successfully!" });
   } catch (error) {
     console.error(error);
     res.status(500).send("Failed to send email");
@@ -565,8 +732,7 @@ app.post("/reject-mfi", async (req, res) => {
     // Send the email
     await transporter.sendMail(mailOptions);
     console.log("Email sent!");
-    res.json({message: "Email sent successfully!"});
-
+    res.json({ message: "Email sent successfully!" });
   } catch (error) {
     console.error(error);
     res.status(500).send("Failed to send email");
@@ -579,7 +745,7 @@ app.post(
   async (req, res) => {
     const authToken = req.headers.authorization;
     const secretKey = process.env.JWT_SECRET;
-    console.log('Updating MFI advert: ', authToken);
+    console.log("Updating MFI advert: ", authToken);
     const mfi = verifyToken(authToken, secretKey);
     console.log("mfi Id :", mfi);
     console.log("UPLOADED FILES: ", JSON.stringify(req.files, null, 2));
@@ -596,7 +762,7 @@ app.post(
 
     try {
       try {
-       // Write the files to the permanent location
+        // Write the files to the permanent location
         fs.writeFileSync(logoFilePath, JSON.stringify(logoFilePath.buffer));
         fs.writeFileSync(
           catalogFilePath,
@@ -616,10 +782,14 @@ app.post(
               },
               LenderAdvert: {
                 briefDesc,
-                securedLoanInterest,
-                unsecuredLoanInterest,
-                logo: "/uploads/" + logoFile.filename, // Store the file path or an empty string if file doesn't exist
-                catalogImage: "/uploads/" + catalogFile.filename, // Store the file path or an empty string if file doesn't exist
+                securedLoanInterest: Array.isArray(securedLoanInterest)
+                  ? securedLoanInterest
+                  : [securedLoanInterest],
+                unsecuredLoanInterest: Array.isArray(unsecuredLoanInterest)
+                  ? unsecuredLoanInterest
+                  : [unsecuredLoanInterest],
+                logo: "/uploads/" + logoFile.filename,
+                catalogImage: "/uploads/" + catalogFile.filename,
               },
             },
           },
@@ -695,25 +865,37 @@ app.post("/lender-login", async (req, res) => {
 });
 
 // Route handler for 'Collateral-based Loan' with file uploads
-app.post('/apply-secured-loan', upload.array('attachmentUris'), async (req, res) => {
-  
-  const authToken = req.headers.authorization;
+app.post(
+  "/apply-secured-loan",
+  upload.array("attachmentUris"),
+  async (req, res) => {
+    const authToken = req.headers.authorization;
     const secretKey = process.env.JWT_SECRET;
-    console.log('Sending Data to MFI: ', req.body);
-    console.log('Uploaded files: ', req.files);
+    console.log("Sending Data to MFI: ", req.body);
+    console.log("Uploaded files: ", req.files);
     const debtorId = verifyToken(authToken, secretKey);
     const debtor = await Debtor.findOne({ _id: debtorId });
-    
     const debtorData = extractDebtorData(debtor);
     const creditScore = calculateCreditScore(debtorData);
-    console.log(`${debtor.basicInformation.firstname} Credit Score: ${creditScore}`);
+    console.log(
+      `${debtor.basicInformation.firstname} Credit Score: ${creditScore}`
+    );
 
     function extractDebtorData(debtor) {
       return {
         occupation: debtor.basicInformation.occupation,
-        outstandingLoans: debtor.creditScoresVars.currentLoans == null ? 0 : debtor.creditScoresVars.currentLoans,
-        clearedLoans: debtor.creditScoresVars.clearedLoans == null ? 0 : debtor.creditScoresVars.clearedLoans,
-        defaultedLoans: debtor.creditScoresVars.defaultedLoans == null ? 0 : debtor.creditScoresVars.defaultedLoans,
+        outstandingLoans:
+          debtor.creditScoresVars.currentLoans == null
+            ? 0
+            : debtor.creditScoresVars.currentLoans,
+        clearedLoans:
+          debtor.creditScoresVars.clearedLoans == null
+            ? 0
+            : debtor.creditScoresVars.clearedLoans,
+        defaultedLoans:
+          debtor.creditScoresVars.defaultedLoans == null
+            ? 0
+            : debtor.creditScoresVars.defaultedLoans,
       };
     }
 
@@ -722,77 +904,87 @@ app.post('/apply-secured-loan', upload.array('attachmentUris'), async (req, res)
         { _id: debtorId },
         {
           $set: {
-            'creditScoresVars.currentLoans': +1,
-            'creditScoresVars.creditScore': creditScore,
+            "creditScoresVars.currentLoans": +1,
+            "creditScoresVars.creditScore": creditScore,
           },
         },
         { new: true }
       );
     }
-    
-    
-
-  try {
-    // Get data from the request
-    const {
-      lenderId,
-      amountRequested,
-      loanRepaymentDate,
-    } = req.body;
-
-    // Get file paths of uploaded documents
-    // Assuming you have two uploaded files (collateralImage and supportingDocx)
-    const collateralImage = req.files[0];
-    const supportingDocx = req.files[1];
-
-    const collateralImagePath = collateralImage.filename;
-    const supportingDocxPath = supportingDocx.filename;
 
     try {
-      // Write the files to the permanent location
-       fs.writeFileSync(collateralImagePath, JSON.stringify(collateralImagePath.buffer));
-       fs.writeFileSync(supportingDocxPath, JSON.stringify(supportingDocxPath.buffer));
-     } catch (err) {
-       console.log("Error writing loan application files: ", err);
-     } finally {
-      // Create a new loan application document
-      const loanApplication = new SecuredLoanApplication({
-        debtorId,
-        lenderId,
-        amountRequested,
-        loanRepaymentDate,
-        collateralImagePath: "/uploads/" + collateralImagePath,
-        supportingDocxPath: "/uploads/" + supportingDocxPath
-      });
+      // Get data from the request
+      const { lenderId, amountRequested, loanRepaymentDate } = req.body;
 
-      // Save the document to MongoDB
-      
-      await updateDebtorCreditScore(debtorId, creditScore);
-      await loanApplication.save();
+      // Get file paths of uploaded documents
+      // Assuming you have two uploaded files (collateralImage and supportingDocx)
+      const collateralImage = req.files[0];
+      const supportingDocx = req.files[1];
 
-      console.log('Loan Applied Successfully');
-      
-      res.status(201).json({ message: 'Secured loan application submitted successfully' });
+      const collateralImagePath = collateralImage.filename;
+      const supportingDocxPath = supportingDocx.filename;
+
+      try {
+        // Write the files to the permanent location
+        fs.writeFileSync(
+          collateralImagePath,
+          JSON.stringify(collateralImagePath.buffer)
+        );
+        fs.writeFileSync(
+          supportingDocxPath,
+          JSON.stringify(supportingDocxPath.buffer)
+        );
+      } catch (err) {
+        console.log("Error writing loan application files: ", err);
+      } finally {
+        // Create a new loan application document
+        const loanApplication = new SecuredLoanApplication({
+          debtorId,
+          lenderId,
+          amountRequested,
+          loanRepaymentDate,
+          collateralImagePath: "/uploads/" + collateralImagePath,
+          supportingDocxPath: "/uploads/" + supportingDocxPath,
+          status: "pending",
+        });
+
+        // Save the document to MongoDB
+
+        await updateDebtorCreditScore(debtorId, creditScore);
+        await loanApplication.save();
+
+        console.log("Loan Applied Successfully");
+        res
+          .status(201)
+          .json({ message: "Secured loan application submitted successfully" });
+
+        sendAlert(
+          debtor.basicInformation.phoneNumberPrimary,
+          "katongobupe@hotmail.com",
+          "Secured loan application submitted successfully" + loanApplication
+        );
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      res.status(500).json({ error: "Internal Server Error" });
     }
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
   }
-});
+);
 
-app.post('/apply-unsecured-loan', async (req, res) => {
-
+app.post("/apply-unsecured-loan", async (req, res) => {
   try {
     const authToken = req.headers.authorization;
     const secretKey = process.env.JWT_SECRET;
     const debtorId = verifyToken(authToken, secretKey);
-    console.log('Sending Data to MFI: ', debtorId);
+    console.log("Sending Data to MFI: ", debtorId);
     const debtor = await Debtor.findOne({ _id: debtorId });
-    
+
     const debtorData = extractDebtorData(debtor);
-    console.log('Credit score data: ', debtorData)
+    // console.log('Credit score data: ', debtorData)
     const creditScore = calculateCreditScore(debtorData);
-    console.log(`${debtor.basicInformation.firstname} Credit Score: ${creditScore}`);
+    console.log(
+      `${debtor.basicInformation.firstname} Credit Score: ${creditScore}`
+    );
 
     const loanApplicationData = {
       debtorId,
@@ -800,50 +992,144 @@ app.post('/apply-unsecured-loan', async (req, res) => {
       amountRequested: req.body.amountRequested,
       loanRepaymentDate: req.body.loanRepaymentDate,
       creditScore,
+      status: "pending",
     };
-    
+
     await createLoanApplication(loanApplicationData);
     await updateDebtorCreditScore(debtorId, creditScore);
 
-    console.log('Loan Applied Successfully');
-    res.status(201).json({ message: 'Unsecured loan application submitted successfully' });
+    console.log("Loan Applied Successfully");
+
+    //SEND ALERTS TO MFIs ON THE NEW LOANS APPLIED
+
+    res
+      .status(201)
+      .json({ message: "Unsecured loan application submitted successfully" });
+    sendAlert(
+      debtor.basicInformation.phoneNumberPrimary,
+      "katongobupe@hotmail.com",
+      "Unsecured loan application submitted successfully" + loanApplicationData
+    );
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 
   function extractDebtorData(debtor) {
     return {
       occupation: debtor.basicInformation.occupation,
-      outstandingLoans: debtor.creditScoresVars.currentLoans == null ? 0 : debtor.creditScoresVars.currentLoans,
-      clearedLoans: debtor.creditScoresVars.clearedLoans == null ? 0 : debtor.creditScoresVars.clearedLoans,
-      defaultedLoans: debtor.creditScoresVars.defaultedLoans == null ? 0 : debtor.creditScoresVars.defaultedLoans,
+      outstandingLoans:
+        debtor.creditScoresVars.currentLoans == null
+          ? 0
+          : debtor.creditScoresVars.currentLoans,
+      clearedLoans:
+        debtor.creditScoresVars.clearedLoans == null
+          ? 0
+          : debtor.creditScoresVars.clearedLoans,
+      defaultedLoans:
+        debtor.creditScoresVars.defaultedLoans == null
+          ? 0
+          : debtor.creditScoresVars.defaultedLoans,
     };
   }
-  
+
   async function createLoanApplication(loanApplicationData) {
     const loanApplication = new UnsecuredLoanApplication(loanApplicationData);
     await loanApplication.save();
   }
-  
+
   async function updateDebtorCreditScore(debtorId, creditScore) {
     return Debtor.findOneAndUpdate(
       { _id: debtorId },
       {
         $set: {
-          'creditScoresVars.currentLoans': +1,
-          'creditScoresVars.creditScore': creditScore,
+          "creditScoresVars.currentLoans": +1,
+          "creditScoresVars.creditScore": creditScore,
         },
       },
       { new: true }
     );
   }
-
 });
 
-app.get('/test', (req, res) => {
-  console.log('hi from the server');
-  res.json({message: 'hi from the server'});
+app.get("/user-loan-data", async (req, res) => {
+  const authToken = req.headers.authorization;
+  const secretKey = process.env.JWT_SECRET; // Replace with your actual secret key
+
+  const userId = verifyToken(authToken, secretKey);
+
+  console.log("Fetching User Loan Data: ", userId);
+
+  //SEND ALERTS TO MFIs ON THE NEW LOANS APPLIED
+
+  try {
+    const securedLoanData = await SecuredLoanApplication.find({
+      debtorId: userId,
+    });
+    const unsecuredLoanData = await UnsecuredLoanApplication.find({
+      debtorId: userId,
+    });
+
+    if (securedLoanData && unsecuredLoanData) {
+      // Respond with the user's loan data
+      console.log(
+        "User Loan Data Fetched: ",
+        securedLoanData,
+        unsecuredLoanData
+      );
+      res.json({ unsecured: unsecuredLoanData, secured: securedLoanData });
+    }
+  } catch (error) {
+    console.log("Unauthorized user!");
+    // Handle token verification or data fetching errors
+    res.status(401).json({ error: "Unauthorized" });
+  }
+});
+
+app.get("/mfi-loan-data", async (req, res) => {
+  const authToken = req.headers.authorization;
+  const secretKey = process.env.JWT_SECRET; // Replace with your actual secret key
+
+  const userId = verifyToken(authToken, secretKey);
+
+  console.log("Fetching MFI Loan Data: ", userId);
+
+  try {
+    const securedLoanData = await SecuredLoanApplication.find({
+      lenderId: userId,
+    });
+
+    const unsecuredLoanData = await UnsecuredLoanApplication.find({
+      lenderId: userId,
+    });
+
+    if (securedLoanData && unsecuredLoanData) {
+      // Respond with the user's loan data
+      console.log(
+        "User Loan Data Fetched: ",
+        securedLoanData,
+        unsecuredLoanData
+      );
+      res.json({ unsecured: unsecuredLoanData, secured: securedLoanData });
+    }
+  } catch (error) {
+    console.log("Unauthorized user!");
+    // Handle token verification or data fetching errors
+    res.status(401).json({ error: "Unauthorized" });
+  }
+});
+
+app.post("/approve-loan", (req, res) => {
+  //SEND ALERTS TO DEBTORS ON THE NEW LOANS APPLIED
+});
+
+app.post("/reject-loan", (req, res) => {
+  //SEND ALERTS TO DEBTORS ON THE NEW LOANS APPLIED
+});
+
+app.get("/test", (req, res) => {
+  console.log("hi from the server");
+  res.json({ message: "hi from the server" });
 });
 
 app.post("/api/post-example", (req, res) => {

@@ -18,6 +18,9 @@ const unsecuredLoanApplicationSchema = new mongoose.Schema({
     type: Date,
     required: true,
   },
+  status: {
+    type: String, 
+  },
 });
 
 // Create a model for SecuredLoanApplication

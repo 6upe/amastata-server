@@ -48,6 +48,7 @@ debtorSchema.pre("save", async function (next) {
 // Add a method to compare passwords
 debtorSchema.methods.comparePassword = async function(candidatePassword) {
   try {
+    console.log('comparing passwords....');
     return await bcrypt.compare(candidatePassword, this.completeSetup.password);
   } catch (error) {
     throw error;

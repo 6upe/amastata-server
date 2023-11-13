@@ -24,6 +24,9 @@ const securedLoanApplicationSchema = new mongoose.Schema({
   supportingDocxPath: {
     type: String, // Store the file path or URL to the supporting document
   },
+  status: {
+    type: String, 
+  },
   // Add other fields as needed
 });
 

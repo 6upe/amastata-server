@@ -23,8 +23,8 @@ function calculateCreditScore(debtorData) {
   const OCCUPATION_SCORES = {
     civil_servant: 90,
     business_owner: 80,
-    not_employed: 50,
-    student: 60,
+    not_employed: 55,
+    student: 50,
     default_score: 50,
   };
   switch (occupation) {
