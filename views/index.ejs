@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <title>Login Page</title>
+    <!-- Include Bootstrap CSS -->
+    <link
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+      }
+
+      .login-container {
+        width: 400px;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .logo-container {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .login-btn {
+        width: 100%;
+      }
+
+      .links-container {
+        margin-top: 10px;
+        text-align: center;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="login-container">
+      <div class="logo-container">
+        <!-- Your Logo Here -->
+        <img
+          src="/assets/images/AmaStata logo.png"
+          alt="Logo"
+          style="width: 200px"
+        />
+      </div>
+
+      <hr />
+      <small class="text-danger response"></small>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <!-- <label for="inputEmail">Email address</label> -->
+          <input
+            type="email"
+            class="form-control"
+            id="inputEmail"
+            placeholder="Email Address"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <!-- <label for="inputPassword">Password</label> -->
+          <input
+            type="password"
+            class="form-control"
+            id="inputPassword"
+            placeholder="Password"
+            required
+          />
+        </div>
+        <button
+          type="button"
+          class="btn btn-primary login-btn"
+          onclick="login()"
+        >
+          Login
+        </button>
+      </form>
+
+      <div class="links-container">
+        <a href="#">Forgot Password</a> |
+        <a href="#">Help & Support</a>
+      </div>
+    </div>
+
+    <script>
+      function login() {
+        console.log("client side auth..");
+        var email = document.getElementById("inputEmail").value;
+        var password = document.getElementById("inputPassword").value;
+
+        // Your server endpoint for login
+        var url = "http://172.20.10.3:2010/admin-login";
+
+        // Post data
+        var data = {
+          email: email,
+          password: password,
+        };
+
+        // Make a post request
+        fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            // Add any other headers if needed
+          },
+          body: JSON.stringify(data),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            // Handle the response from the server
+            console.log(data);
+            document.querySelector(
+                ".response"
+              ).innerHTML = `<p>${data.message}</p>`;
+            if (data.message == "Login Success") {
+              window.location.href = "/lenders";
+              
+            }
+
+            // Redirect or perform other actions based on the response
+          })
+          .catch((error) => {
+            console.log("Error:", error);
+            document.querySelector(".response").innerHTML = `<p>${error}</p>`;
+          });
+      }
+    </script>
+
+    <!-- Include Bootstrap JS and Popper.js -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.7/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  </body>
+</html>

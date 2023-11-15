@@ -10,11 +10,12 @@ const session = require("express-session");
 const mongoose = require("mongoose");
 const Admin = require("./database/models/Admin");
 const Lender = require("./database/models/Lender");
-const Debtor = require("./database/models/debtor");
+const Debtor = require("./database/models/Debtors");
 const SecuredLoanApplication = require("./database/models/SecuredLoanApplication");
 const UnsecuredLoanApplication = require("./database/models/UnsecuredLoanApplication");
 const calculateCreditScore = require("./AI Models/calculateCreditScore");
 const nodemailer = require("nodemailer");
+const cron = require('node-cron');
 
 const jwt = require("jsonwebtoken"); // You'll need to install the 'jsonwebtoken' package
 
@@ -130,7 +131,7 @@ async function automatedReminder() {
     console.log("Secured loans Fetched!", securedLoans);
     const unsecuredLoans = await UnsecuredLoanApplication.find();
     console.log("UnsecuredLoans loans Fetched!", securedLoans);
-    console.log("Fetching Debtors Next...");
+    console.log("Preparing Reminders (Emails | SMSs)");
     const debtors = await Debtor.find();
     console.log("Debtors loans Fetched!");
 
@@ -141,7 +142,14 @@ async function automatedReminder() {
           for (let j = 0; j < debtors.length; j++) {
             // Access the debtor using debtors[j] instead of debtors._id
             if (debtors[j]._id == securedLoans[i].debtorId) {
-              console.log('Remind ', debtors[j].basicInformation.firstname, ' Loan is Due in ', calculateDaysDifference(Date.now(), new Date(securedLoans[i].loanRepaymentDate)), 'Days ', JSON.stringify(securedLoans[i]));
+              if(calculateDaysDifference(Date.now(), new Date(securedLoans[i].loanRepaymentDate) < 0)){
+                sendAlert('+260962893773', 'katongobupe@hotmail.com', ' Loan was Due  ' + calculateDaysDifference(Date.now(), new Date(securedLoans[i].loanRepaymentDate)) + 'Days Ago!' + JSON.stringify(securedLoans[i]));
+                console.log('Remind ', debtors[j].basicInformation.firstname, ' Loan was Due  ', calculateDaysDifference(Date.now(), new Date(securedLoans[i].loanRepaymentDate)), 'Days Ago!', JSON.stringify(securedLoans[i]));
+              }else{
+                sendAlert('+260962893773', 'katongobupe@hotmail.com', ' Loan is Due  in ' + calculateDaysDifference(Date.now(), new Date(securedLoans[i].loanRepaymentDate)) + 'Days!' + JSON.stringify(securedLoans[i]));
+                console.log('Remind ', debtors[j].basicInformation.firstname, ' Loan was is Due in', calculateDaysDifference(Date.now(), new Date(securedLoans[i].loanRepaymentDate)), 'Days ', JSON.stringify(securedLoans[i]));
+              }
+              //
             }
           }
         }
@@ -155,7 +163,14 @@ async function automatedReminder() {
           for (let j = 0; j < debtors.length; j++) {
             // Access the debtor using debtors[j] instead of debtors._id
             if (debtors[j]._id == unsecuredLoans[i].debtorId) {
-              console.log('Remind ', debtors[j].basicInformation.firstname, ' Loan is Due in ', calculateDaysDifference(Date.now(), new Date(unsecuredLoans[i].loanRepaymentDate)), 'Days ', JSON.stringify(unsecuredLoans[i]));
+              if(calculateDaysDifference(Date.now(), new Date(unsecuredLoans[i].loanRepaymentDate) < 0)){
+                sendAlert('+260962893773', 'katongobupe@hotmail.com', ' Loan was Due  ' + calculateDaysDifference(Date.now(), new Date(unsecuredLoans[i].loanRepaymentDate)) + 'Days Ago!' + JSON.stringify(unsecuredLoans[i]));
+                console.log('Remind ', debtors[j].basicInformation.firstname, ' Loan was Due  ', calculateDaysDifference(Date.now(), new Date(unsecuredLoans[i].loanRepaymentDate)), 'Days Ago!', JSON.stringify(unsecuredLoans[i]));
+              }else{
+                sendAlert('+260962893773', 'katongobupe@hotmail.com', ' Loan is Due  in ' + calculateDaysDifference(Date.now(), new Date(unsecuredLoans[i].loanRepaymentDate)) + 'Days!' + JSON.stringify(unsecuredLoans[i]));
+                console.log('Remind ', debtors[j].basicInformation.firstname, ' Loan was is Due in', calculateDaysDifference(Date.now(), new Date(unsecuredLoans[i].loanRepaymentDate)), 'Days ', JSON.stringify(unsecuredLoans[i]));
+              }
+              //
             }
           }
         }
@@ -211,7 +226,15 @@ const connectWithRetry = () => {
       console.log("Connected to MongoDB");
       app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
-        // automatedReminder();
+        //*******CALL THIS FUNcTION THREE TIMES A DAY (7hrs, 14hrs, 16hrs) ********* */
+        cron.schedule('0 7,12,17 * * *', () => {
+          automatedReminder();
+
+          //IF LOAN IS DUE ADD INTEREST
+          
+
+        });
+        // automatedReminder(); //CALL ONCE THE SERVER RUNS
       });
     })
     .catch((error) => {
@@ -223,8 +246,9 @@ const connectWithRetry = () => {
     });
 };
 
-// Call the connectWithRetry function to initiate the connection and retries
+/****************FUNCTION CALLS ON START SERVER******************************/
 connectWithRetry();
+
 
 function generateOTP() {
   const min = 1000; // Minimum 4-digit number
@@ -264,14 +288,33 @@ const upload = multer({ storage });
 
 app.get("/", (req, res) => {
   //FETCH ALL DEBTORS
-  Debtor.find()
-    .then((result) => {
-      res.json(result[0]._id);
-    })
-    .catch((err) => {
-      console.log(err);
-    });
+  // Debtor.find()
+  //   .then((result) => {
+  //     res.json(result[0]._id);
+  //   })
+  //   .catch((err) => {
+  //     console.log(err);
+  //   });
+  console.log('Page sent!...');
+  res.render("index");
+
 });
+
+app.post('/admin-login', async (req, res) => {
+
+  const {email, password} = req.body;
+
+  console.log('Authenticating...', req.body);
+
+  if(email == 'admin@amastata.com' && password == 'Password123'){
+    console.log('Login Success!');
+    res.json({message: 'Login Success'});
+  }else{
+    console.log('Login Failed!');
+    res.json({message: 'Credentials Incorrect!'});
+  }
+});
+
 
 app.get("/lenders", async (req, res) => {
   console.log("fetching lender data...");
@@ -318,6 +361,7 @@ app.get("/lenders", async (req, res) => {
         approvedLenders,
         rejectedLenders,
         pendingLenders,
+        readyLenders
       });
     }
   } catch (error) {

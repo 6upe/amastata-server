@@ -187,15 +187,25 @@
             <img width="30px" style="border-radius: 500px;" src="/assets/icons/rejected.jpg" alt="">
             <p style="margin-top: 15px; margin-left: 5px;">Rejected</p> 
           </a>
+          <a id="readyBtn" style="height: 40px; display: flex; align-items: center;" class="nav-link text-secondary fw-bold mx-3" href="#">
+            <img width="30px" style="border-radius: 500px;" src="https://i0.wp.com/eupha.org/repository/EUPHW/13_May_being_physically_active_Animated_icon_EUPHW.gif?w=780&ssl=1" alt="">
+            <p style="margin-top: 15px; margin-left: 5px;">Active</p> 
+          </a>
         </div>
 
-        <a class="nav-link" href="#">
+        <a id="logoutBtn" class="nav-link" href="#">
           <img
             src="/assets/images/NoPath - Copy (34).png"
             alt="Logout"
             class="logout-icon"
           />
         </a>
+
+        <script>
+          document.getElementById('logoutBtn').addEventListener('click', () => {
+            window.location.href = "/";
+          });
+        </script>
 
       </div>
     </nav>
@@ -341,7 +351,8 @@
             <% } %>
         </div>
         <div style="display: none;" id="approved-lenders">
-          <% for (let i = 0; i < approvedLenders.length; i++) { %> 
+          <% 
+          for (let i = 0; i < approvedLenders.length; i++) { %> 
           
             <% 
             let lender = approvedLenders[i]; 
@@ -403,27 +414,104 @@
             </div>
             <% } %>
         </div>
+        <div style="display: none;" id="ready-lenders">
+          <% 
+          for (let i = 0; i < readyLenders.length; i++) { %> 
+          
+            <% 
+            let lender = readyLenders[i]; 
+            let arg_companyName = readyLenders[i].LenderCompanyInfo.companyName; 
+            let arg_businessOperationalAddress
+            =readyLenders[i].LenderCompanyInfo.businessOperationalAddress; let
+            arg_phoneNumberPrimaryCompany =
+            readyLenders[i].LenderCompanyInfo.phoneNumberPrimary; let arg_businessWebsite
+            = readyLenders[i].LenderCompanyInfo.businessWebsite; let arg_firstname =
+            readyLenders[i].AuthorizedPersonel.firstname; let arg_lastname =
+            readyLenders[i].AuthorizedPersonel.lastname; let arg_phoneNumberPrimary =
+            readyLenders[i].AuthorizedPersonel.phoneNumberPrimary; let arg_emailAddress =
+            readyLenders[i].AuthorizedPersonel.emailAddress; let arg_occupation =
+            readyLenders[i].AuthorizedPersonel.occupation; let arg_NRCPath =
+            readyLenders[i].AuthorizedPersonel.NRCFilePath; let arg_KYCPath =
+            readyLenders[i].LenderKYCDocument.KYCDocumentFilePath; let
+            arg_businessEmailAddress =
+            readyLenders[i].LenderCompleteSetup.businessEmailAddress; let arg_lenderID =
+            readyLenders[i]._id;
+            let arg_LenderLogo = readyLenders[i].LenderAdvert.logo;
+            %>
+            
+            <div class="card">
+              <div style="display: flex; align-items: center">
+                <img
+                  style="padding: 10px; "
+                  class="logo"
+                  src="<%= lender.LenderAdvert.logo %>"
+                  alt="Company Logo"
+                />
+                <div>
+                  <h4><%= lender.LenderCompanyInfo.companyName %></h4>
+    
+                  <button
+                    onclick="viewApplication(
+                        '<%= arg_companyName %>',
+                        '<%= arg_businessOperationalAddress %>',
+                        '<%= arg_phoneNumberPrimaryCompany %>',
+                        '<%= arg_businessWebsite %>',
+                        '<%= arg_businessEmailAddress %>',
+                        '<%= arg_firstname %>',
+                        '<%= arg_lastname %>',
+                        '<%= arg_phoneNumberPrimary %>',
+                        '<%= arg_emailAddress %>',
+                        '<%= arg_occupation %>',
+                        '<%= arg_KYCPath.replace(/\\/g, '\\\\') %>',
+                        '<%= arg_NRCPath.replace(/\\/g, '\\\\') %>',
+                        '<%= arg_lenderID %>',
+                        '<%= arg_LenderLogo %>'
+    
+                        
+                    );"
+                    class="btn btn-primary btn-sm"
+                  >
+                    View Application
+                  </button>
+                </div>
+              </div>
+            </div>
+            <% } %>
+        </div>
 
         <script>
           const rejectedLenders = document.getElementById('rejected-lenders');
           const pendingLenders = document.getElementById('pending-lenders');
           const approvedLenders = document.getElementById('approved-lenders');
+          const readyLenders = document.getElementById('ready-lenders');
 
             document.getElementById('pendingBtn').addEventListener('click', () => {
               pendingLenders.style.display = 'block';
               approvedLenders.style.display = 'none';
               rejectedLenders.style.display = 'none';
+              readyLenders.style.display = 'none';
             });
           document.getElementById('approvedBtn').addEventListener('click', () => {
             approvedLenders.style.display = 'block';
             pendingLenders.style.display = 'none';
             rejectedLenders.style.display = 'none';
+            readyLenders.style.display = 'none';
           });
             document.getElementById('rejectedBtn').addEventListener('click', () => {
               pendingLenders.style.display = 'none';
               approvedLenders.style.display = 'none';
               rejectedLenders.style.display = 'block';
+              readyLenders.style.display = 'none';
             });
+
+            document.getElementById('readyBtn').addEventListener('click', () => {
+              pendingLenders.style.display = 'none';
+              approvedLenders.style.display = 'none';
+              rejectedLenders.style.display = 'none';
+              readyLenders.style.display = 'block';
+            });
+
+
         </script>
         
 
@@ -683,7 +771,7 @@
 
         approveMFIBtn.addEventListener("click", function () {
           console.log('Approving Loan in progress...', lenderID.innerText);
-         
+          approveMFIBtn.innerText = `Approving in progress...`;
 
           const formData = {
             to: 'katongobupe@hotmail.com',
@@ -733,6 +821,7 @@
             //SET MFI ACCOUNT STATUS = APPROVED
             if(response.ok)
               console.log('MFI Account Approved');
+              approveMFIBtn.innerText = `MFI Approved!`;
               location.reload();
 
           })
@@ -747,8 +836,8 @@
         const rejectionMessage = document.getElementById('rejectionMessage').value;
 
         rejectMFIBtn.addEventListener("click", function () {
-          console.log('Rejecting Loan in progress...', lenderID.innerText);
-         
+          console.log('Rejecting MFI in progress...', lenderID.innerText);
+          rejectMFIBtn.innerText = `Rejecting MFI in progress...`;
 
           const formData = {
             to: 'katongobupe@hotmail.com',
@@ -798,6 +887,7 @@
             //SET MFI ACCOUNT STATUS = Rejected
             if(response.ok)
               console.log('MFI Account Rejected');
+              rejectMFIBtn.innerText = `MFI Rejected`;
               location.reload();
           })
           .catch((error) => {
